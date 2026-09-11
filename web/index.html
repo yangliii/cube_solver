@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>三阶魔方新手还原教程</title>
+<style>
+  :root {
+    --bg: #12141c; --panel: #1b1f2b; --card: #232838; --line: #323a52;
+    --text: #e8ebf5; --sub: #9aa3bd; --accent: #4f8cff; --ok: #3ecf7a; --warn: #ffb84f;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    background: var(--bg); color: var(--text); display: flex; flex-direction: column;
+  }
+  header {
+    height: 46px; flex: none; display: flex; align-items: center; gap: 12px;
+    padding: 0 16px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 16px; font-weight: 600; }
+  header .badge {
+    font-size: 11px; color: var(--sub); border: 1px solid var(--line);
+    border-radius: 10px; padding: 1px 8px;
+  }
+  #status { margin-left: auto; font-size: 12px; color: var(--sub); }
+  #status b { color: var(--accent); font-family: Consolas, monospace; }
+
+  main { flex: 1; display: flex; min-height: 0; }
+  #viewWrap { flex: 1; position: relative; min-width: 0; }
+  #view { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+  #view:active { cursor: grabbing; }
+
+  /* 底部手动控制条 */
+  #toolbar {
+    position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 12px 10px;
+    background: linear-gradient(transparent, rgba(10,12,18,.85) 30%);
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center;
+  }
+  .faceRow { display: flex; gap: 3px; }
+  .faceRow .fname { font-size: 11px; color: var(--sub); width: 100%; text-align: center; }
+  .faceCol { display: flex; flex-direction: column; gap: 3px; align-items: center; }
+  button {
+    font-family: Consolas, "Microsoft YaHei", monospace; cursor: pointer;
+    background: var(--card); color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; transition: background .15s, transform .05s;
+  }
+  button:hover:not(:disabled) { background: #2d3450; }
+  button:active:not(:disabled) { transform: scale(.94); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  .mv { width: 34px; height: 24px; font-size: 12px; }
+  .act { height: 32px; padding: 0 14px; font-size: 13px; }
+  .act.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .act.ok { background: var(--ok); border-color: var(--ok); color: #04240f; }
+  .act.warn { color: var(--warn); }
+  #speed { width: 90px; accent-color: var(--accent); vertical-align: middle; }
+  .lbl { font-size: 12px; color: var(--sub); }
+
+  /* 右侧教程面板 */
+  #side {
+    width: 400px; flex: none; background: var(--panel); border-left: 1px solid var(--line);
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  #steps { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 14px 8px; flex: none; }
+  .chip {
+    font-size: 12px; padding: 4px 10px; border-radius: 14px; cursor: pointer;
+    background: var(--card); border: 1px solid var(--line); color: var(--sub); user-select: none;
+  }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #stepBody { flex: 1; overflow-y: auto; padding: 6px 14px 16px; }
+  #stepBody h2 { font-size: 16px; margin: 8px 0 6px; }
+  #stepBody .goal {
+    font-size: 13px; line-height: 1.7; color: var(--text);
+    background: rgba(79,140,255,.1); border-left: 3px solid var(--accent);
+    padding: 8px 10px; border-radius: 0 6px 6px 0; margin-bottom: 8px;
+  }
+  #stepBody .detail { font-size: 12.5px; line-height: 1.8; color: var(--sub); margin-bottom: 12px; }
+  .fcard {
+    background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px 12px; margin-bottom: 10px;
+  }
+  .fcard .fname2 { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .fcard .fmove {
+    font-family: Consolas, monospace; font-size: 14px; color: var(--warn);
+    letter-spacing: 1px; margin: 6px 0; word-spacing: 6px;
+  }
+  .fcard .fmove .done { color: var(--ok); }
+  .fcard .fmove .cur { background: rgba(255,184,79,.25); border-radius: 3px; padding: 0 2px; }
+  .fcard .fnote { font-size: 12px; color: var(--sub); margin-bottom: 8px; line-height: 1.6; }
+  .fcard .fbtns { display: flex; gap: 8px; align-items: center; }
+  .fbtns .act { height: 28px; font-size: 12px; padding: 0 12px; }
+  .fbtns .prog { font-size: 12px; color: var(--sub); margin-left: auto; }
+  #navRow { display: flex; gap: 8px; padding: 0 14px 12px; flex: none; }
+  #navRow .act { flex: 1; }
+  details {
+    flex: none; border-top: 1px solid var(--line); padding: 8px 14px; font-size: 12px;
+  }
+  details summary { cursor: pointer; color: var(--sub); font-size: 12px; outline: none; }
+  details .body { padding: 8px 2px 2px; line-height: 1.9; color: var(--sub); }
+  details code {
+    font-family: Consolas, monospace; background: var(--card); color: var(--warn);
+    border-radius: 3px; padding: 0 5px; margin-right: 4px;
+  }
+  #toast {
+    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    background: rgba(20,24,36,.92); border: 1px solid var(--line); color: var(--text);
+    padding: 8px 18px; border-radius: 20px; font-size: 13px; opacity: 0;
+    transition: opacity .25s; pointer-events: none; white-space: nowrap;
+  }
+  #toast.show { opacity: 1; }
+  #hint {
+    position: absolute; top: 10px; left: 12px; font-size: 11px; color: var(--sub);
+    background: rgba(20,24,36,.6); padding: 4px 10px; border-radius: 12px; pointer-events: none;
+  }
+
+  /* ===== 实物录入弹窗 ===== */
+  .modal {
+    position: fixed; inset: 0; background: rgba(8,10,16,.7); display: none;
+    align-items: flex-start; justify-content: center; z-index: 50; padding: 24px 12px; overflow:auto;
+  }
+  .modal.open { display: flex; }
+  .modalBox {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    width: 100%; max-width: 720px; box-shadow: 0 12px 40px rgba(0,0,0,.5);
+  }
+  .modalHead { display:flex; align-items:center; padding: 14px 18px; border-bottom:1px solid var(--line); }
+  .modalHead h2 { font-size: 16px; }
+  .modalClose { margin-left:auto; background:none; border:none; color:var(--sub); font-size:18px; width:auto;height:auto; }
+  .modalClose:hover { background: var(--card); }
+  .modalBody { padding: 14px 18px 20px; }
+  .tip { font-size:12.5px; line-height:1.7; color: var(--sub); margin-bottom:10px; }
+  .palette { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:8px; }
+  .palette .lbl { font-size:12px; color:var(--sub); margin-right:4px; }
+  .sw { width:38px; height:28px; border-radius:6px; border:1px solid var(--line); color:#fff; font-size:12px; }
+  .sw.sel { outline:2px solid var(--accent); outline-offset:1px; }
+  .entryBtns { display:flex; gap:8px; margin-bottom:12px; }
+  .entryBtns .act { height:26px; font-size:12px; padding:0 10px; }
+  .nets { display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .bandRow { display:flex; gap:6px; }
+  .faceNet { text-align:center; }
+  .faceNet .cap { font-size:11px; color:var(--sub); margin-bottom:2px; line-height:1.3; }
+  .faceNet .cap small { display:block; font-size:9.5px; opacity:.7; }
+  .faceNet .grid { display:grid; grid-template-columns:repeat(3,30px); grid-auto-rows:30px; gap:2px; }
+  .cell {
+    border:1px solid var(--line); border-radius:4px; cursor:pointer; background:#2a2f42;
+    display:flex; align-items:center; justify-content:center; font-size:11px; color:rgba(255,255,255,.35);
+    user-select:none;
+  }
+  .cell.center { cursor:default; font-weight:700; color:rgba(255,255,255,.85); }
+  .cell[data-c="W"]{ background:#f4f5f7; } .cell[data-c="Y"]{ background:#ffd500; }
+  .cell[data-c="G"]{ background:#079a42; } .cell[data-c="B"]{ background:#0f5cb9; }
+  .cell[data-c="R"]{ background:#b9190f; } .cell[data-c="O"]{ background:#f07312; }
+  .entryErr { color:#ff8080; font-size:12.5px; min-height:18px; margin-top:10px; text-align:center; }
+  .modalActions { display:flex; gap:10px; justify-content:center; margin-top:12px; }
+  .modalActions .act { height:34px; padding:0 16px; }
+  .stepList { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin:8px 0 4px; }
+  .stepItem {
+    font-family:Consolas,monospace; font-size:14px; padding:5px 10px; border-radius:6px;
+    background:var(--card); border:1px solid var(--line); min-width:34px; text-align:center;
+  }
+  .stepItem.done { color:var(--ok); border-color:var(--ok); }
+  .stepItem.cur { background:rgba(255,184,79,.25); border-color:var(--warn); color:var(--warn); font-weight:700; }
+
+  #guideDock {
+    position:absolute; top:12px; left:12px; z-index:20; display:none;
+    background:rgba(20,24,36,.92); border:1px solid var(--line); border-radius:10px;
+    padding:10px 12px; max-width:360px; box-shadow:0 8px 24px rgba(0,0,0,.4);
+  }
+  #guideDock.open { display:block; }
+  #guideDock .dockHead { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  #guideDock #dockSummary { font-size:12.5px; color:var(--text); }
+  #guideDock .stepList { justify-content:flex-start; }
+  #guideDock .dockBtns { display:flex; gap:8px; margin-top:10px; }
+  #guideDock .dockBtns .act { height:28px; font-size:12px; padding:0 12px; }
+
+
+</style>
+</head>
+<body>
+<header>
+  <h1>🧊 三阶魔方 · 新手还原教程</h1>
+  <span class="badge">Python + Three.js</span>
+  <span class="badge">分层七步法</span>
+  <button class="act" id="openEntry" style="margin-left:12px;height:28px;font-size:12px">📥 录入实物魔方</button>
+  <div id="status">就绪</div>
+</header>
+
+<main>
+  <div id="viewWrap">
+    <canvas id="view"></canvas>
+    <div id="hint">左键拖动旋转视角 · 滚轮缩放</div>
+    <div id="toast"></div>
+    <div id="toolbar"></div>
+  </div>
+
+  <div id="side">
+    <div id="steps"></div>
+    <div id="stepBody"></div>
+    <div id="navRow">
+      <button class="act" id="prevStep">◀ 上一步</button>
+      <button class="act" id="nextStep">下一步 ▶</button>
+    </div>
+    <details>
+      <summary>📖 转动符号说明（R U D L F B）</summary>
+      <div class="body" id="notationBody">加载中…</div>
+    </details>
+  </div>
+</main>
+
+<!-- 实物魔方状态录入弹窗 -->
+<div id="entryModal" class="modal">
+  <div class="modalBox">
+    <div class="modalHead">
+      <h2>📥 录入实物魔方状态</h2>
+      <button class="modalClose" id="closeEntry">✕</button>
+    </div>
+
+    <div class="modalBody">
+      <div id="entryIntro">
+        <p class="tip">把魔方摆成 <b>上白 · 下黄 · 前绿 · 后蓝 · 右红 · 左橙</b>（中心块决定各面颜色），然后 <b>逐面点/刷录入 54 个贴纸</b>（中心已按配色自动填好，只需填 48 个可动块）。<br>
+        录满 6 个面可 <b>唯一确定</b> 状态，保证还原指导正确（经数学验证：少录任一面都无法保证唯一）。</p>
+        <div class="palette" id="palette">
+          <span class="lbl">选颜色后点/刷格子：</span>
+          <button class="sw" data-color="W" style="background:#f4f5f7">白</button>
+          <button class="sw" data-color="Y" style="background:#ffd500;color:#333">黄</button>
+          <button class="sw" data-color="G" style="background:#079a42">绿</button>
+          <button class="sw" data-color="B" style="background:#0f5cb9">蓝</button>
+          <button class="sw" data-color="R" style="background:#b9190f">红</button>
+          <button class="sw" data-color="O" style="background:#f07312;color:#333">橙</button>
+          <button class="sw eraser" data-color="" style="background:#232838">擦</button>
+        </div>
+        <div class="entryBtns">
+          <button class="act" id="fillSolved">填充为还原态</button>
+          <button class="act" id="clearEntry">清空</button>
+        </div>
+
+        <div class="nets">
+          <div class="faceNet" data-face="U"><div class="cap">U 顶(白)<small>上=后 下=前 左=左 右=右</small></div></div>
+          <div class="bandRow">
+            <div class="faceNet" data-face="L"><div class="cap">L 左(橙)<small>上=上 左=后 右=前</small></div></div>
+            <div class="faceNet" data-face="F"><div class="cap">F 前(绿)<small>正对你 · 常规朝向</small></div></div>
+            <div class="faceNet" data-face="R"><div class="cap">R 右(红)<small>上=上 左=前 右=后</small></div></div>
+            <div class="faceNet" data-face="B"><div class="cap">B 后(蓝)<small>上=上 左=右 右=左</small></div></div>
+          </div>
+          <div class="faceNet" data-face="D"><div class="cap">D 底(黄)<small>上=前 下=后 左=左 右=右</small></div></div>
+        </div>
+        <div id="entryErr" class="entryErr"></div>
+        <div class="modalActions">
+          <button class="act ok" id="solveGuide">🔍 校验并生成还原步骤</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 还原指导悬浮栏（3D 播放时可见） -->
+<div id="guideDock">
+  <div class="dockHead">
+    <span id="dockSummary"></span>
+    <button class="modalClose" id="guideExit" title="退出指导">✕</button>
+  </div>
+  <div class="stepList" id="stepList"></div>
+  <div class="dockBtns">
+    <button class="act primary" id="guideStep">▶ 下一步</button>
+    <button class="act" id="guideAuto">🤖 全部播放</button>
+    <button class="act" id="guideBack">✎ 改状态</button>
+  </div>
+</div>
+
+
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+/* ================= 基础场景 ================= */
+const canvas = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+const dir = new THREE.DirectionalLight(0xffffff, 1.4);
+dir.position.set(6, 10, 8);
+scene.add(dir);
+const dir2 = new THREE.DirectionalLight(0x8899ff, 0.5);
+dir2.position.set(-6, -4, -8);
+scene.add(dir2);
+
+/* 相机轨道控制（自实现，无外部依赖） */
+const orb = { theta: 0.65, phi: 1.12, radius: 7.2, minR: 4.2, maxR: 13 };
+function updateCam() {
+  camera.position.set(
+    orb.radius * Math.sin(orb.phi) * Math.sin(orb.theta),
+    orb.radius * Math.cos(orb.phi),
+    orb.radius * Math.sin(orb.phi) * Math.cos(orb.theta)
+  );
+  camera.lookAt(0, 0, 0);
+}
+let dragging = false, lastX = 0, lastY = 0;
+canvas.addEventListener('pointerdown', e => { dragging = true; lastX = e.clientX; lastY = e.clientY; canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener('pointermove', e => {
+  if (!dragging) return;
+  orb.theta -= (e.clientX - lastX) * 0.008;
+  orb.phi = Math.min(2.6, Math.max(0.35, orb.phi - (e.clientY - lastY) * 0.008));
+  lastX = e.clientX; lastY = e.clientY; updateCam();
+});
+canvas.addEventListener('pointerup', () => dragging = false);
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  orb.radius = Math.min(orb.maxR, Math.max(orb.minR, orb.radius * (1 + e.deltaY * 0.001)));
+  updateCam();
+}, { passive: false });
+
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(canvas);
+updateCam();
+
+/* ================= 魔方模型 ================= */
+// 配色：上白 下黄 前绿 后蓝 右红 左橙
+const COLORS = { px: 0xb9190f, nx: 0xf07312, py: 0xf4f5f7, ny: 0xffd500, pz: 0x079a42, nz: 0x0f5cb9 };
+const stickerGeo = new THREE.PlaneGeometry(0.82, 0.82);
+const baseGeo = new THREE.BoxGeometry(0.96, 0.96, 0.96);
+const baseMat = new THREE.MeshStandardMaterial({ color: 0x14161c, roughness: 0.35 });
+
+// 每面顺时针(从该面外侧观察)的世界坐标变换：
+// axis=选择轴与层面, mat=90°整数旋转矩阵(行主序, 作用于列向量), cwAngle=动画角(右手法则)
+const FACES = {
+  R: { axis: 'x', layer:  1, cwAngle: -Math.PI / 2,
+       mat: [[1,0,0],[0,0,1],[0,-1,0]] },
+  L: { axis: 'x', layer: -1, cwAngle:  Math.PI / 2,
+       mat: [[1,0,0],[0,0,-1],[0,1,0]] },
+  U: { axis: 'y', layer:  1, cwAngle: -Math.PI / 2,
+       mat: [[0,0,-1],[0,1,0],[1,0,0]] },
+  D: { axis: 'y', layer: -1, cwAngle:  Math.PI / 2,
+       mat: [[0,0,1],[0,1,0],[-1,0,0]] },
+  F: { axis: 'z', layer:  1, cwAngle: -Math.PI / 2,
+       mat: [[0,1,0],[-1,0,0],[0,0,1]] },
+  B: { axis: 'z', layer: -1, cwAngle:  Math.PI / 2,
+       mat: [[0,-1,0],[1,0,0],[0,0,1]] },
+};
+
+/* 纯整数矩阵/向量运算 —— 逻辑状态零漂移 */
+const mulMV = (M, v) => M.map(r => r[0]*v[0] + r[1]*v[1] + r[2]*v[2]);
+const mulMM = (A, B) => A.map((r, i) => r.map((_, j) =>
+  r[0]*B[0][j] + r[1]*B[1][j] + r[2]*B[2][j]));
+const transpose = M => M[0].map((_, j) => M.map(r => r[j]));
+
+const cubeGroup = new THREE.Group();
+scene.add(cubeGroup);
+let cubies = [];
+
+function makeSticker(normal, color) {
+  const m = new THREE.Mesh(stickerGeo,
+    new THREE.MeshStandardMaterial({ color, roughness: 0.28, metalness: 0 }));
+  const s = 0.489;
+  if (normal[0] ===  1) { m.position.set( s, 0, 0); m.rotation.y =  Math.PI / 2; }
+  if (normal[0] === -1) { m.position.set(-s, 0, 0); m.rotation.y = -Math.PI / 2; }
+  if (normal[1] ===  1) { m.position.set(0,  s, 0); m.rotation.x = -Math.PI / 2; }
+  if (normal[1] === -1) { m.position.set(0, -s, 0); m.rotation.x =  Math.PI / 2; }
+  if (normal[2] ===  1) { m.position.set(0, 0,  s); }
+  if (normal[2] === -1) { m.position.set(0, 0, -s); m.rotation.y = Math.PI; }
+  return m;
+}
+
+function buildCube() {
+  for (const c of cubies) cubeGroup.remove(c.mesh);
+  cubies = [];
+  const I = [[1,0,0],[0,1,0],[0,0,1]];
+  for (let x = -1; x <= 1; x++)
+    for (let y = -1; y <= 1; y++)
+      for (let z = -1; z <= 1; z++) {
+        if (!x && !y && !z) continue;
+        const mesh = new THREE.Mesh(baseGeo, baseMat);
+        if (x ===  1) mesh.add(makeSticker([ 1,0,0], COLORS.px));
+        if (x === -1) mesh.add(makeSticker([-1,0,0], COLORS.nx));
+        if (y ===  1) mesh.add(makeSticker([0, 1,0], COLORS.py));
+        if (y === -1) mesh.add(makeSticker([0,-1,0], COLORS.ny));
+        if (z ===  1) mesh.add(makeSticker([0,0, 1], COLORS.pz));
+        if (z === -1) mesh.add(makeSticker([0,0,-1], COLORS.nz));
+        cubeGroup.add(mesh);
+        cubies.push({
+          mesh,
+          pos: [x, y, z], rot: I.map(r => r.slice()),
+          initPos: [x, y, z], initRot: I.map(r => r.slice()),
+        });
+      }
+  cubies.forEach(applyLogical);
+}
+
+function applyLogical(c) {
+  c.mesh.position.set(c.pos[0], c.pos[1], c.pos[2]);
+  const m = new THREE.Matrix4().set(
+    c.rot[0][0], c.rot[0][1], c.rot[0][2], 0,
+    c.rot[1][0], c.rot[1][1], c.rot[1][2], 0,
+    c.rot[2][0], c.rot[2][1], c.rot[2][2], 0,
+    0, 0, 0, 1);
+  c.mesh.quaternion.setFromRotationMatrix(m);
+}
+
+/* ================= 转动执行与动画 ================= */
+function parseMove(token) {
+  const face = token[0], mod = token.slice(1);
+  return { face, mod, token };
+}
+// 返回 {selectFn, quarterMat(一次实际转向的整数矩阵), animAngle, animAxis}
+function moveParams(mv) {
+  const def = FACES[mv.face];
+  let q = def.mat, angle = def.cwAngle;
+  if (mv.mod === "'") { q = transpose(def.mat); angle = -def.cwAngle; }
+  if (mv.mod === '2') { q = mulMM(def.mat, def.mat); angle = def.cwAngle * 2; }
+  const ai = { x: 0, y: 1, z: 2 }[def.axis];
+  return {
+    test: p => p[ai] === def.layer,
+    quarterMat: q, animAngle: angle,
+    animAxis: new THREE.Vector3(def.axis === 'x' ? 1 : 0, def.axis === 'y' ? 1 : 0, def.axis === 'z' ? 1 : 0),
+  };
+}
+
+const easeInOut = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+function animateMove(token, duration) {
+  return new Promise(resolve => {
+    const mv = parseMove(token);
+    const { test, quarterMat, animAngle, animAxis } = moveParams(mv);
+    const chosen = cubies.filter(c => test(c.pos));
+    const finish = () => {
+      // 落回精确整数逻辑状态（无浮点漂移，无需 attach 补偿）
+      for (const c of chosen) {
+        c.pos = mulMV(quarterMat, c.pos);
+        c.rot = mulMM(quarterMat, c.rot);
+        cubeGroup.add(c.mesh);
+        applyLogical(c);
+      }
+      resolve();
+    };
+    if (document.hidden) { finish(); return; }  // 后台标签页 rAF 冻结时直接到位
+    const pivot = new THREE.Group();
+    scene.add(pivot);
+    for (const c of chosen) pivot.add(c.mesh);   // pivot 位于原点且无旋转，平移无损
+
+    const t0 = performance.now();
+    (function frame(now) {
+      const t = Math.min(1, (now - t0) / duration);
+      pivot.rotation.set(0, 0, 0);
+      pivot.rotateOnAxis(animAxis, animAngle * easeInOut(t));
+      if (t < 1) { requestAnimationFrame(frame); return; }
+      scene.remove(pivot);
+      finish();
+    })(t0);
+  });
+}
+
+let busy = false;
+let speedMs = 260;
+let history = [];
+let solMoves = [];   // 自动还原：当前缓存的解法步骤
+let solPos = 0;      // 已单步执行到的位置
+function clearSolution() { solMoves = []; solPos = 0; }
+
+function setBusy(v) {
+  busy = v;
+  document.querySelectorAll('button').forEach(b => { b.disabled = v; });
+  updateStatus();
+}
+function updateStatus() {
+  document.getElementById('status').innerHTML = busy
+    ? '转动中… <b>' + (curToken || '') + '</b>'
+    : '就绪';
+  refreshCardProgress();
+}
+
+async function execMoves(tokens, { record = true, duration = speedMs, keepSolution = false } = {}) {
+  if (busy || !tokens.length) return;
+  if (!keepSolution) clearSolution();   // 手动转动会使已缓存的解法失效
+  setBusy(true);
+  for (const tk of tokens) {
+    curToken = tk;
+    updateStatus();
+    await animateMove(tk, tk.endsWith('2') ? duration * 1.7 : duration);
+    if (record) history.push(tk);
+  }
+  setBusy(false);
+}
+
+async function undo() {
+  if (busy || !history.length) return;
+  const tk = history.pop();
+  const mv = parseMove(tk);
+  const inv = mv.mod === "'" ? mv.face : mv.mod === '2' ? tk : mv.face + "'";
+  await execMoves([inv], { record: false });
+  toast('撤销 ' + tk);
+}
+
+async function resetCube() {
+  if (busy) return;
+  for (const c of cubies) {
+    c.pos = c.initPos.slice();
+    c.rot = c.initRot.map(r => r.slice());
+    applyLogical(c);
+  }
+  history = [];
+  clearSolution();
+  toast('已复原为还原态');
+}
+
+async function scramble() {
+  if (busy) return;
+  const faces = 'RLUDFB';
+  const mods = ['', "'", '2'];
+  const seq = [];
+  let prev = '';
+  while (seq.length < 20) {
+    const f = faces[Math.random() * 6 | 0];
+    if (f === prev) continue;
+    prev = f;
+    seq.push(f + mods[Math.random() * 3 | 0]);
+  }
+  await execMoves(seq, { duration: 90 });
+  toast('已打乱，开始跟右侧教程一步步还原吧！');
+}
+
+/* ================= 自动还原：导出状态 + 调用后端求解 ================= */
+// cube_solver 约定：facelet 顺序 U L F R B D，每面行优先 9 格；
+// 配色 +Y白W -Y黄Y +Z绿G -Z蓝B +X红R -X橙O（与 COLORS 一致）。
+const HOME_LETTER = {
+  '1,0,0': 'R', '-1,0,0': 'O', '0,1,0': 'W',
+  '0,-1,0': 'Y', '0,0,1': 'G', '0,0,-1': 'B',
+};
+const NORMAL_TO_FACE = {
+  '1,0,0': 'R', '-1,0,0': 'L', '0,1,0': 'U',
+  '0,-1,0': 'D', '0,0,1': 'F', '0,0,-1': 'B',
+};
+const FACE_BASE = { U: 0, L: 9, F: 18, R: 27, B: 36, D: 45 };
+
+function faceletIndex(face, p) {
+  const [x, y, z] = p;
+  let row, col;
+  if (face === 'U') { row = z + 1; col = x + 1; }
+  else if (face === 'D') { row = 1 - z; col = x + 1; }
+  else if (face === 'F') { row = 1 - y; col = x + 1; }
+  else if (face === 'B') { row = 1 - y; col = 1 - x; }
+  else if (face === 'R') { row = 1 - y; col = 1 - z; }
+  else { row = 1 - y; col = z + 1; }   // L
+  return FACE_BASE[face] + row * 3 + col;
+}
+
+// 依据每个贴纸的当前世界法线与所在块位置，拼出 54 位状态串
+function cubeToRepr() {
+  const s = new Array(54).fill('');
+  const NORMALS = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+  for (const c of cubies) {
+    for (const h of NORMALS) {
+      const ax = h[0] !== 0 ? 0 : (h[1] !== 0 ? 1 : 2);
+      if (c.initPos[ax] !== h[ax]) continue;   // 该 home 法线不属于此块
+      const n = mulMV(c.rot, h);               // 当前世界法线
+      const face = NORMAL_TO_FACE[n.join(',')];
+      s[faceletIndex(face, c.pos)] = HOME_LETTER[h.join(',')];
+    }
+  }
+  return s.join('');
+}
+
+// 向后端请求当前状态的解法；成功返回 moves 数组，失败/已还原返回 null
+async function requestSolution() {
+  const repr = cubeToRepr();
+  if (repr.length !== 54) { toast('状态读取失败'); return null; }
+  if (/^W+O+G+R+B+Y+$/.test(repr)) { toast('已经是还原态啦！'); return null; }
+  toast('🤖 正在求解…');
+  setBusy(true);
+  let data;
+  try {
+    const r = await fetch('/api/solve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ repr }),
+    });
+    data = await r.json();
+  } catch (e) {
+    toast('无法连接求解接口，请确认已运行 python app.py');
+    return null;
+  } finally {
+    setBusy(false);
+  }
+  if (!data || data.error) { toast('求解失败：' + ((data && data.error) || '未知错误')); return null; }
+  const moves = data.moves || [];
+  if (!moves.length) { toast('已经是还原态啦！'); return null; }
+  return moves;
+}
+
+// 一键播放完整解法
+async function autoSolve() {
+  if (busy) return;
+  const moves = await requestSolution();
+  if (!moves) return;
+  toast('找到 ' + moves.length + ' 步解法，开始演示 ▶');
+  await execMoves(moves, { keepSolution: true });
+  clearSolution();
+  toast('✅ 自动还原完成！');
+}
+
+// 单步执行：首次点击求解并走一步，之后每次点击走一步；走完后再点则重新求解
+async function autoSolveStep() {
+  if (busy) return;
+  if (solPos >= solMoves.length) {
+    const moves = await requestSolution();
+    if (!moves) { clearSolution(); return; }
+    solMoves = moves; solPos = 0;
+  }
+  const tk = solMoves[solPos];
+  await execMoves([tk], { keepSolution: true });
+  solPos++;
+  const remain = solMoves.length - solPos;
+  if (remain > 0) {
+    toast(`${tk} ✅  第 ${solPos}/${solMoves.length} 步，还剩 ${remain} 步`);
+  } else {
+    toast('✅ 自动还原完成！');
+    clearSolution();
+  }
+}
+
+/* ================= 底部工具条 ================= */
+let curToken = '';
+function buildToolbar() {
+  const tb = document.getElementById('toolbar');
+  tb.innerHTML = '';
+  for (const f of ['L', 'R', 'U', 'D', 'F', 'B']) {
+    const col = document.createElement('div');
+    col.className = 'faceCol';
+    const name = { L: '左', R: '右', U: '上', D: '下', F: '前', B: '后' }[f];
+    col.title = f + ' ' + name + '面';
+    const row = document.createElement('div');
+    row.className = 'faceRow';
+    for (const [mod, txt, tip] of [['', '↻', '顺时针90°'], ["'", '↺', '逆时针90°'], ['2', '18', '转180°']]) {
+      const b = document.createElement('button');
+      b.className = 'mv'; b.textContent = txt;
+      b.title = f + mod + ' (' + name + '面 ' + tip + ')';
+      b.onclick = () => execMoves([f + mod]);
+      row.appendChild(b);
+    }
+    const lab = document.createElement('div');
+    lab.className = 'fname'; lab.textContent = f + ' ' + name;
+    col.appendChild(row); col.appendChild(lab);
+    tb.appendChild(col);
+  }
+  const mk = (label, cls, fn) => {
+    const b = document.createElement('button');
+    b.className = 'act ' + cls; b.textContent = label; b.onclick = fn;
+    tb.appendChild(b); return b;
+  };
+  mk('🔀 打乱', 'primary', scramble);
+  mk('🤖 自动还原', 'ok', autoSolve);
+  mk('👣 单步还原', 'ok', autoSolveStep);
+  mk('↩ 撤销', '', undo);
+  mk('♻ 复原', 'warn', resetCube);
+  const sp = document.createElement('span');
+  sp.innerHTML = '&nbsp;<span class="lbl">速度</span>&nbsp;';
+  const slider = document.createElement('input');
+  slider.type = 'range'; slider.min = 80; slider.max = 600; slider.value = 260;
+  slider.id = 'speed'; slider.title = '拖动调整转动速度（左慢右快）';
+  slider.oninput = () => { speedMs = 680 - slider.value * 1; }; // 右=快
+  slider.oninput();
+  sp.appendChild(slider); tb.appendChild(sp);
+}
+
+/* ================= 教程面板（数据来自 Python /api/steps） ================= */
+let stepsData = [];
+let curStep = 0;
+const cardStates = new Map();   // 每卡单步进度
+let curCardKey = null, curCardIdx = 0;
+
+function renderSteps() {
+  const box = document.getElementById('steps');
+  box.innerHTML = '';
+  stepsData.forEach((s, i) => {
+    const c = document.createElement('span');
+    c.className = 'chip' + (i === curStep ? ' on' : '');
+    c.textContent = s.id + ' ' + s.title.split('（')[0];
+    c.onclick = () => { curStep = i; renderSteps(); renderStepBody(); };
+    box.appendChild(c);
+  });
+}
+
+function stepKey(si, fi) { return si + ':' + fi; }
+
+function refreshCardProgress() {
+  document.querySelectorAll('.fmove').forEach(el => {
+    const key = el.dataset.key;
+    if (!key) return;
+    const [si, fi] = key.split(':').map(Number);
+    const tokens = el._tokens;
+    const idx = (curCardKey === key) ? curCardIdx : (cardStates.get(key) || 0);
+    el.innerHTML = tokens.map((t, i) => {
+      let cls = '';
+      if (i < idx) cls = 'done';
+      else if (i === idx && curCardKey === key && busy) cls = 'cur';
+      return `<span class="${cls}">${t}</span>`;
+    }).join(' ');
+  });
+}
+
+function renderStepBody() {
+  const s = stepsData[curStep];
+  const box = document.getElementById('stepBody');
+  box.innerHTML = '';
+  box.insertAdjacentHTML('beforeend',
+    `<h2>第 ${s.id} 步 · ${s.title}</h2>
+     <div class="goal">🎯 ${s.goal}</div>
+     <div class="detail">${s.detail}</div>`);
+
+  s.formulas.forEach((f, fi) => {
+    const key = stepKey(curStep, fi);
+    const tokens = f.moves.trim().split(/\s+/);
+    const card = document.createElement('div');
+    card.className = 'fcard';
+    card.innerHTML = `
+      <div class="fname2">${f.name}</div>
+      <div class="fmove" data-key="${key}"></div>
+      <div class="fnote">💡 ${f.note}</div>
+      <div class="fbtns">
+        <button class="act primary" data-play>▶ 完整演示</button>
+        <button class="act" data-step>单步 ▶</button>
+        <span class="prog"></span>
+      </div>`;
+    card.querySelector('.fmove')._tokens = tokens;
+    card.querySelector('[data-play]').onclick = async () => {
+      if (busy) return;
+      curCardKey = key; curCardIdx = 0;
+      for (let i = 0; i < tokens.length; i++) {
+        curToken = tokens[i];
+        const done = i; // 已执行数
+        await execMovesSilent(tokens[i]);
+        curCardIdx = done + 1;
+        refreshCardProgress();
+      }
+      cardStates.set(key, tokens.length);
+      setTimeout(() => { curCardKey = null; curCardIdx = 0; cardStates.set(key, 0); refreshCardProgress(); }, 800);
+      toast(`${f.name} 演示完成`);
+    };
+    card.querySelector('[data-step]').onclick = () => {
+      if (busy) return;
+      let idx = cardStates.get(key) || 0;
+      if (idx >= tokens.length) idx = 0;   // 走完一轮后从头开始
+      curCardKey = key; curCardIdx = idx;
+      curToken = tokens[idx];
+      execMovesSilent(tokens[idx]).then(() => {
+        curCardIdx = idx + 1;
+        cardStates.set(key, idx + 1 >= tokens.length ? 0 : idx + 1);
+        if (idx + 1 >= tokens.length) { curCardKey = null; }
+        refreshCardProgress();
+        updateProg();
+      });
+    };
+    const prog = card.querySelector('.prog');
+    function updateProg() {
+      const idx = cardStates.get(key) || 0;
+      prog.textContent = idx > 0 ? `已完成 ${idx}/${tokens.length} 步` : `共 ${tokens.length} 步`;
+    }
+    updateProg();
+    box.appendChild(card);
+    refreshCardProgress();
+  });
+}
+
+// 演示路径共用 busy，但不经过 execMoves 以免嵌套 busy 死锁
+function execMovesSilent(token) {
+  return new Promise(resolve => {
+    if (busy) { resolve(); return; }
+    clearSolution();   // 教程演示转动会改变状态，使已缓存的解法失效
+    setBusy(true);
+    const dur = token.endsWith('2') ? speedMs * 1.7 : speedMs;
+    animateMove(token, dur).then(() => {
+      history.push(token);
+      setBusy(false);
+      resolve();
+    });
+  });
+}
+
+async function loadTutorial() {
+  try {
+    const [steps, nota] = await Promise.all([
+      fetch('/api/steps').then(r => r.json()),
+      fetch('/api/notation').then(r => r.json()),
+    ]);
+    stepsData = steps.steps;
+    renderSteps(); renderStepBody();
+    document.getElementById('notationBody').innerHTML =
+      nota.faces.map(f => `<div><code>${f.face}</code>${f.cn}：${f.desc}</div>`).join('') +
+      nota.modifiers.map(m => `<div><code>${m.symbol}</code>${m.meaning}</div>`).join('') +
+      `<div style="margin-top:6px">${nota.tips}</div>`;
+  } catch (err) {
+    document.getElementById('stepBody').innerHTML =
+      '<p style="color:#ff8080;padding:20px">教程数据加载失败，请确认已运行 <b>python app.py</b> 后刷新页面。</p>';
+  }
+}
+
+/* ================= 其他 ================= */
+let toastTimer = null;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
+}
+
+document.getElementById('prevStep').onclick = () => {
+  if (busy) return;
+  curStep = (curStep + stepsData.length - 1) % stepsData.length;
+  renderSteps(); renderStepBody();
+};
+document.getElementById('nextStep').onclick = () => {
+  if (busy) return;
+  curStep = (curStep + 1) % stepsData.length;
+  renderSteps(); renderStepBody();
+};
+// 键盘快捷键：R U F L D B，Shift = 逆时针
+addEventListener('keydown', e => {
+  if (busy) return;
+  if (document.getElementById('entryModal').classList.contains('open')) return; // 录入时禁用
+  const k = e.key.toUpperCase();
+  if ('RULDFB'.includes(k) && !e.ctrlKey && !e.metaKey && e.target.tagName !== 'INPUT') {
+    execMoves([k + (e.shiftKey ? "'" : '')]);
+  }
+});
+
+/* ================= 实物魔方录入：6 面完整录入 + 3D 重建 + 指导 ================= */
+const FACELET = { U: 'W', D: 'Y', F: 'G', B: 'B', R: 'R', L: 'O' }; // 各面中心/归属色
+const PAINT_FACES = ['U', 'L', 'F', 'R', 'B', 'D'];   // 录入全部 6 面（中心自动填，保证唯一）
+
+const ID3 = [[1,0,0],[0,1,0],[0,0,1]];
+// 生成 24 个合法朝向矩阵（用 6 个基本 90° 转向做闭包）
+function buildOrientations() {
+  const mats = Object.values(FACES).map(f => f.mat);
+  const key = M => M.flat().join(',');
+  const seen = new Set(), out = [], q = [ID3.map(r => r.slice())];
+  while (q.length) {
+    const M = q.pop(), k = key(M);
+    if (seen.has(k)) continue;
+    seen.add(k); out.push(M);
+    for (const b of mats) q.push(mulMM(b, M));
+  }
+  return out;   // 长度 24
+}
+const ORIENTS = buildOrientations();
+
+function homeNormals(c) {
+  const out = [], h = c.initPos;
+  for (const v of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]) {
+    const ax = v[0] !== 0 ? 0 : (v[1] !== 0 ? 1 : 2);
+    if (h[ax] === v[ax]) out.push(v);
+  }
+  return out;
+}
+
+// 由完整 54 位 repr 反推每个块的 pos/rot，重建 3D 模型
+function loadModelFromRepr(repr) {
+  for (const c of cubies) {
+    const hn = homeNormals(c);
+    let found = false;
+    for (const rot of ORIENTS) {
+      const p = mulMV(rot, c.initPos);
+      let ok = true;
+      for (const h of hn) {
+        const n = mulMV(rot, h);
+        const face = NORMAL_TO_FACE[n.join(',')];
+        if (repr[faceletIndex(face, p)] !== HOME_LETTER[h.join(',')]) { ok = false; break; }
+      }
+      if (ok) { c.pos = p; c.rot = rot.map(r => r.slice()); applyLogical(c); found = true; break; }
+    }
+    if (!found) return false;
+  }
+  return true;
+}
+
+/* --------- 录入 UI --------- */
+const entryState = {};   // face -> 长度9 的颜色字母数组（'' 表示未填）
+let brush = 'W';
+let painting = false;
+let entryInited = false;
+
+function refreshCell(face, i) {
+  const cell = document.querySelector(`.cell[data-face="${face}"][data-i="${i}"]`);
+  if (cell) cell.dataset.c = entryState[face][i] || '';
+}
+function repaintFace(face) { for (let i = 0; i < 9; i++) refreshCell(face, i); }
+
+function buildFaceGrid(face) {
+  const wrap = document.querySelector(`.faceNet[data-face="${face}"] .grid`)
+    || (() => { const g = document.createElement('div'); g.className = 'grid';
+      document.querySelector(`.faceNet[data-face="${face}"]`).appendChild(g); return g; })();
+  wrap.innerHTML = '';
+  entryState[face] = entryState[face] || new Array(9).fill('');
+  for (let i = 0; i < 9; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell' + (i === 4 ? ' center' : '');
+    cell.dataset.face = face; cell.dataset.i = i;
+    if (i === 4) { entryState[face][4] = FACELET[face]; cell.dataset.c = FACELET[face]; cell.title = '中心块（固定）'; }
+    else {
+      cell.onpointerdown = e => { e.preventDefault(); painting = true; paintCell(face, i); };
+      cell.onpointerenter = () => { if (painting) paintCell(face, i); };
+    }
+    wrap.appendChild(cell);
+  }
+}
+function paintCell(face, i) {
+  entryState[face][i] = brush;
+  refreshCell(face, i);
+}
+
+function initEntryUI() {
+  if (entryInited) return;
+  entryInited = true;
+  ['U', 'L', 'F', 'R', 'B', 'D'].forEach(buildFaceGrid);
+  const pal = document.getElementById('palette');
+  pal.querySelectorAll('.sw').forEach(b => {
+    if (b.dataset.color === 'W') b.classList.add('sel');
+    b.onclick = () => { brush = b.dataset.color;
+      pal.querySelectorAll('.sw').forEach(x => x.classList.toggle('sel', x === b)); };
+  });
+  addEventListener('pointerup', () => { painting = false; });
+
+  document.getElementById('openEntry').onclick = () => {
+    document.getElementById('entryErr').textContent = '';
+    document.getElementById('entryModal').classList.add('open');
+  };
+  document.getElementById('closeEntry').onclick = () =>
+    document.getElementById('entryModal').classList.remove('open');
+
+  document.getElementById('fillSolved').onclick = () => {
+    PAINT_FACES.forEach(f => { for (let i = 0; i < 9; i++) entryState[f][i] = FACELET[f]; repaintFace(f); });
+    document.getElementById('entryErr').textContent = '';
+  };
+  document.getElementById('clearEntry').onclick = () => {
+    PAINT_FACES.forEach(f => { for (let i = 0; i < 9; i++) if (i !== 4) entryState[f][i] = ''; repaintFace(f); });
+    document.getElementById('entryErr').textContent = '';
+  };
+  document.getElementById('solveGuide').onclick = solveGuide;
+
+  document.getElementById('guideStep').onclick = guideStepFn;
+  document.getElementById('guideAuto').onclick = guideAutoFn;
+  document.getElementById('guideBack').onclick = () => {
+    document.getElementById('guideDock').classList.remove('open');
+    document.getElementById('entryModal').classList.add('open');
+  };
+  document.getElementById('guideExit').onclick = () =>
+    document.getElementById('guideDock').classList.remove('open');
+}
+
+function buildReprFromEntry() {
+  const a = new Array(54).fill(null);
+  for (const f of PAINT_FACES) {
+    for (let i = 0; i < 9; i++) {
+      const v = entryState[f][i];
+      if (!v) return { err: `${f} 面还有未填的格子` };
+      a[FACE_BASE[f] + i] = v;
+    }
+  }
+  if (a.some(v => !v)) return { err: '状态组装失败' };
+  const cnt = {}; for (const ch of a) cnt[ch] = (cnt[ch] || 0) + 1;
+  for (const c of 'WYGRBO') if (cnt[c] !== 9) return { err: `颜色数量错误（${c}=${cnt[c] || 0}，应为 9），请核对` };
+  return { repr: a.join(''), arr: a };
+}
+
+async function solveGuide() {
+  const errEl = document.getElementById('entryErr');
+  const { repr, err } = buildReprFromEntry();
+  if (err) { errEl.textContent = '⚠ ' + err; return; }
+  errEl.textContent = '';
+  errEl.textContent = '🔍 正在求解…';
+  let data;
+  try {
+    const r = await fetch('/api/solve', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ repr }) });
+    data = await r.json();
+  } catch (e) { errEl.textContent = '⚠ 无法连接求解接口，请确认已运行 python app.py'; return; }
+  if (!data || data.error) { errEl.textContent = '⚠ 求解失败：' + ((data && data.error) || '未知错误'); return; }
+  const moves = data.moves || [];
+  if (!moves.length) { errEl.textContent = '✅ 这已经是还原态啦！'; return; }
+  if (!loadModelFromRepr(repr)) { errEl.textContent = '⚠ 状态无法装载（可能不可达，魔方被错误拆装？）'; return; }
+  history = []; clearSolution();
+  solMoves = moves; solPos = 0;
+  document.getElementById('entryModal').classList.remove('open');
+  renderDock(moves);
+}
+
+/* --------- 指导栏 --------- */
+function renderDock(moves) {
+  const list = document.getElementById('stepList');
+  document.getElementById('dockSummary').textContent = `共 ${moves.length} 步 · 跟着做即可还原`;
+  list.innerHTML = '';
+  moves.forEach((m, i) => {
+    const el = document.createElement('span');
+    el.className = 'stepItem'; el.textContent = (i + 1) + '. ' + m;
+    list.appendChild(el);
+  });
+  updateDock();
+  document.getElementById('guideDock').classList.add('open');
+}
+function updateDock() {
+  [...document.getElementById('stepList').children].forEach((el, i) => {
+    el.classList.toggle('done', i < solPos);
+    el.classList.toggle('cur', i === solPos);
+  });
+}
+async function guideStepFn() {
+  if (busy) return;
+  if (solPos >= solMoves.length) { toast('已全部完成 🎉'); return; }
+  const tk = solMoves[solPos];
+  await execMoves([tk], { keepSolution: true });
+  solPos++; updateDock();
+  if (solPos >= solMoves.length) toast('✅ 还原完成！');
+}
+async function guideAutoFn() {
+  if (busy) return;
+  if (solPos >= solMoves.length) { toast('已全部完成 🎉'); return; }
+  await execMoves(solMoves.slice(solPos), { keepSolution: true });
+  solPos = solMoves.length; updateDock(); toast('✅ 还原完成！');
+}
+
+buildToolbar();
+buildCube();
+initEntryUI();
+loadTutorial();
+
+(function loop() {
+  requestAnimationFrame(loop);
+  renderer.render(scene, camera);
+})();
+resize();
+</script>
+</body>
+</html>

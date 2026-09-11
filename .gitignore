@@ -1,0 +1,16 @@
+# cube-solver 运行期自动生成的剪枝/转移表（体积达 GB 级，不入库）
+tables/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
