@@ -70,21 +70,48 @@
   .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
   #stepBody { flex: 1; overflow-y: auto; padding: 6px 14px 16px; }
   #stepBody h2 { font-size: 16px; margin: 8px 0 6px; }
+  #stepBody h2 .no { font-size: 12px; font-weight: 400; color: var(--sub); margin-left: 6px; }
   #stepBody .goal {
     font-size: 13px; line-height: 1.7; color: var(--text);
     background: rgba(79,140,255,.1); border-left: 3px solid var(--accent);
     padding: 8px 10px; border-radius: 0 6px 6px 0; margin-bottom: 8px;
   }
   #stepBody .detail { font-size: 12.5px; line-height: 1.8; color: var(--sub); margin-bottom: 12px; }
+  #stepBody .detail .lab { color: var(--text); }
+  #stepBody .howto {
+    font-size: 12px; line-height: 1.7; color: var(--sub);
+    border: 1px dashed var(--line); border-radius: 6px; padding: 6px 10px; margin-bottom: 10px;
+  }
+  #stepBody .lab { font-weight: 600; margin-right: 4px; }
+  #stepBody .prep, #stepBody .check {
+    font-size: 12px; line-height: 1.75; color: var(--text);
+    border-radius: 0 6px 6px 0; padding: 7px 10px; margin-bottom: 8px;
+  }
+  #stepBody .prep { background: rgba(255,184,79,.09); border-left: 3px solid var(--warn); }
+  #stepBody .prep .lab { color: var(--warn); }
+  #stepBody .check { background: rgba(62,207,122,.09); border-left: 3px solid var(--ok); }
+  #stepBody .check .lab { color: var(--ok); }
+  #stepBody b { font-weight: 700; color: #fff; }
+  .steptips { margin: 10px 0 4px; }
+  .steptips .lab { font-size: 12px; color: var(--sub); }
+  .steptips li { font-size: 12px; line-height: 1.75; color: var(--sub); margin: 4px 0 0 16px; }
   .fcard {
     background: var(--card); border: 1px solid var(--line); border-radius: 8px;
     padding: 10px 12px; margin-bottom: 10px;
   }
   .fcard .fname2 { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .fcard .fwhen {
+    font-size: 12px; line-height: 1.7; color: var(--text);
+    background: rgba(79,140,255,.12); border-left: 3px solid var(--accent);
+    border-radius: 0 5px 5px 0; padding: 5px 8px; margin-bottom: 6px;
+  }
+  .fcard .fwhen .lab { color: var(--accent); }
   .fcard .fmove {
     font-family: Consolas, monospace; font-size: 14px; color: var(--warn);
-    letter-spacing: 1px; margin: 6px 0; word-spacing: 6px;
+    margin: 6px 0; display: flex; flex-wrap: wrap; gap: 5px 16px;
   }
+  /* 长公式分组：换行只发生在组之间，眼睛不用在一堆符号里找断点 */
+  .fcard .fmove .grp { display: flex; gap: 8px; flex: none; }
   .fcard .fmove .done { color: var(--ok); }
   .fcard .fmove .cur { background: rgba(255,184,79,.25); border-radius: 3px; padding: 0 2px; }
   .fcard .fnote { font-size: 12px; color: var(--sub); margin-bottom: 8px; line-height: 1.6; }
@@ -97,7 +124,17 @@
     flex: none; border-top: 1px solid var(--line); padding: 8px 14px; font-size: 12px;
   }
   details summary { cursor: pointer; color: var(--sub); font-size: 12px; outline: none; }
-  details .body { padding: 8px 2px 2px; line-height: 1.9; color: var(--sub); }
+  details .body {
+    padding: 8px 2px 2px; line-height: 1.9; color: var(--sub);
+    max-height: 38vh; overflow-y: auto;   /* 展开说明时不至于把上方教程挤没 */
+  }
+  details .ntab { color: var(--text); font-weight: 600; font-size: 12px; margin: 8px 0 2px; }
+  details .ntab:first-child { margin-top: 0; }
+  details .ntip {
+    font-size: 12px; line-height: 1.75; color: var(--sub); margin-top: 6px;
+    border-left: 2px solid var(--line); padding-left: 8px;
+  }
+  details .ntip b { color: var(--text); }
   details code {
     font-family: Consolas, monospace; background: var(--card); color: var(--warn);
     border-radius: 3px; padding: 0 5px; margin-right: 4px;
@@ -202,7 +239,7 @@
       <button class="act" id="nextStep">下一步 ▶</button>
     </div>
     <details>
-      <summary>📖 转动符号说明（R U D L F B）</summary>
+      <summary>📖 符号说明 &amp; 拿法约定（第一次还原先看这里）</summary>
       <div class="body" id="notationBody">加载中…</div>
     </details>
   </div>
@@ -695,26 +732,44 @@ function refreshCardProgress() {
   document.querySelectorAll('.fmove').forEach(el => {
     const key = el.dataset.key;
     if (!key) return;
-    const [si, fi] = key.split(':').map(Number);
     const tokens = el._tokens;
     const idx = (curCardKey === key) ? curCardIdx : (cardStates.get(key) || 0);
-    el.innerHTML = tokens.map((t, i) => {
+    const cells = tokens.map((t, i) => {
       let cls = '';
       if (i < idx) cls = 'done';
       else if (i === idx && curCardKey === key && busy) cls = 'cur';
       return `<span class="${cls}">${t}</span>`;
-    }).join(' ');
+    });
+    if (tokens.length <= 6) { el.innerHTML = cells.join(''); return; }
+    // 分成尽量等长的小组（最多 5 个一组）：8 步 → 4+4，13 步 → 5+5+3，避免尾巴上只剩一个符号
+    const size = Math.ceil(tokens.length / Math.ceil(tokens.length / 5));
+    const groups = [];
+    for (let i = 0; i < cells.length; i += size) {
+      groups.push('<span class="grp">' + cells.slice(i, i + size).join('') + '</span>');
+    }
+    el.innerHTML = groups.join('');
   });
+}
+
+// 教程文案里用 **xx** 标出必须盯住的方向词，渲染成加粗
+function md(t) {
+  return String(t == null ? '' : t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 }
 
 function renderStepBody() {
   const s = stepsData[curStep];
   const box = document.getElementById('stepBody');
   box.innerHTML = '';
+  box.scrollTop = 0;   // 换步后回到顶部，否则上一步的滚动位置会把新步骤开头推出视野
   box.insertAdjacentHTML('beforeend',
-    `<h2>第 ${s.id} 步 · ${s.title}</h2>
-     <div class="goal">🎯 ${s.goal}</div>
-     <div class="detail">${s.detail}</div>`);
+    `<h2>第 ${s.id} 步 · ${s.title}<span class="no">${s.id} / ${stepsData.length}</span></h2>
+     <div class="goal">🎯 ${md(s.goal)}</div>
+     ${s.prepare ? `<div class="prep"><span class="lab">🧭 怎么拿</span>${md(s.prepare)}</div>` : ''}
+     ${s.check ? `<div class="check"><span class="lab">✅ 算完成</span>${md(s.check)}</div>` : ''}
+     <div class="detail"><span class="lab">🧩 怎么做</span>${md(s.detail)}</div>
+     ${s.formulas.length > 1
+       ? '<div class="howto">下面几条公式<b>不要连着全做</b>：按卡片上的「什么时候用」挑当前符合的那一条，做完再回上面重新判断。</div>'
+       : ''}`);
 
   s.formulas.forEach((f, fi) => {
     const key = stepKey(curStep, fi);
@@ -722,9 +777,10 @@ function renderStepBody() {
     const card = document.createElement('div');
     card.className = 'fcard';
     card.innerHTML = `
-      <div class="fname2">${f.name}</div>
+      <div class="fname2">公式 ${fi + 1} · ${f.name}</div>
+      ${f.when ? `<div class="fwhen"><span class="lab">👉 什么时候用</span>${md(f.when)}</div>` : ''}
       <div class="fmove" data-key="${key}"></div>
-      <div class="fnote">💡 ${f.note}</div>
+      <div class="fnote">💡 ${md(f.note)}</div>
       <div class="fbtns">
         <button class="act primary" data-play>▶ 完整演示</button>
         <button class="act" data-step>单步 ▶</button>
@@ -736,9 +792,8 @@ function renderStepBody() {
       curCardKey = key; curCardIdx = 0;
       for (let i = 0; i < tokens.length; i++) {
         curToken = tokens[i];
-        const done = i; // 已执行数
         await execMovesSilent(tokens[i]);
-        curCardIdx = done + 1;
+        curCardIdx = i + 1;   // 已执行数
         refreshCardProgress();
       }
       cardStates.set(key, tokens.length);
@@ -768,6 +823,12 @@ function renderStepBody() {
     box.appendChild(card);
     refreshCardProgress();
   });
+
+  if (s.tips && s.tips.length) {
+    box.insertAdjacentHTML('beforeend',
+      `<div class="steptips"><div class="lab">⚠️ 容易踩的坑</div>
+         <ul>${s.tips.map(t => `<li>${md(t)}</li>`).join('')}</ul></div>`);
+  }
 }
 
 // 演示路径共用 busy，但不经过 execMoves 以免嵌套 busy 死锁
@@ -793,10 +854,14 @@ async function loadTutorial() {
     ]);
     stepsData = steps.steps;
     renderSteps(); renderStepBody();
+    const tips = Array.isArray(nota.tips) ? nota.tips : [nota.tips];
     document.getElementById('notationBody').innerHTML =
+      '<div class="ntab">字母 = 转哪一层</div>' +
       nota.faces.map(f => `<div><code>${f.face}</code>${f.cn}：${f.desc}</div>`).join('') +
+      '<div class="ntab">跟在字母后面的符号</div>' +
       nota.modifiers.map(m => `<div><code>${m.symbol}</code>${m.meaning}</div>`).join('') +
-      `<div style="margin-top:6px">${nota.tips}</div>`;
+      '<div class="ntab">几条必须先弄清的约定</div>' +
+      tips.map(t => `<div class="ntip">${md(t)}</div>`).join('');
   } catch (err) {
     document.getElementById('stepBody').innerHTML =
       '<p style="color:#ff8080;padding:20px">教程数据加载失败，请确认已运行 <b>python app.py</b> 后刷新页面。</p>';
