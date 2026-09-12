@@ -13,6 +13,8 @@
 import json
 import os
 import mimetypes
+import webbrowser
+import threading
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 # ---------------- 求解引擎（可选依赖，缺失时后端仍可运行） ----------------
@@ -373,6 +375,9 @@ def main():
 
     print("  按 Ctrl+C 停止服务")
     print("=" * 46)
+    # 延迟 1.5 秒后自动打开系统浏览器，确保服务已就绪
+    url = f"http://localhost:{PORT}"
+    threading.Timer(1.5, lambda: webbrowser.open(url)).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
