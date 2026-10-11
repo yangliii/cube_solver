@@ -5,6 +5,10 @@
   1. 提供静态页面服务（web/index.html，Three.js 3D 前端）
   2. 提供教程数据 API（/api/steps 分层法七步教程、/api/notation 符号说明）
   3. 提供魔方求解 API（/api/solve：接收当前状态，返回自动还原步骤）
+  4. 提供扫描导入 API（/api/scan/latest：读取 cube_scans/ 里最新一次
+     cube_scanner.py 扫描结果，自动校正面朝向并转换为录入状态）
+  5. 提供扫描启动 API（/api/scan/start：在本机拉起 cube_scanner.py 摄像头
+     扫描窗口；/api/scan/status：供页面轮询，扫描结束自动导入结果）
 运行：python app.py  然后浏览器访问 http://localhost:8000
 求解引擎：cube_solver（纯 Python + C 加速的 Kociemba 两阶段算法）。
          配色约定与前端完全一致：上白(W) 下黄(Y) 前绿(G) 后蓝(B) 右红(R) 左橙(O)。
@@ -13,6 +17,9 @@
 import json
 import os
 import mimetypes
+import subprocess
+import sys
+import time
 import webbrowser
 import threading
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -31,6 +38,25 @@ except Exception as _e:  # noqa: BLE001
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 WEB_DIR = os.path.join(ROOT, "web")
+SCAN_DIR = os.path.join(ROOT, "cube_scans")
+
+# ---------------- 扫描结果导入（可选，缺失时后端仍可运行） ----------------
+sys.path.insert(0, SCAN_DIR)
+try:
+    from scan_to_facelet import latest_scan_result, latest_scan_file
+    SCAN_OK = True
+    SCAN_ERR = ""
+except Exception as _e:  # noqa: BLE001
+    latest_scan_result = latest_scan_file = None
+    SCAN_OK = False
+    SCAN_ERR = str(_e)
+
+# ---------------- 摄像头扫描启动（网页 → 本机 cube_scanner.py） ----------------
+SCANNER = os.path.join(SCAN_DIR, "cube_scanner.py")
+_scan_lock = threading.Lock()
+_scan_proc = None           # 最近一次由网页启动的扫描进程
+_scan_started_at = 0.0      # 启动时刻，用于判断是否生成了新的扫描结果
+
 PORT = 8000
 
 # ---------------- 转动符号说明 ----------------
@@ -291,7 +317,8 @@ def solve_facelet(facelet):
             return None, "无法求解，该状态可能不可达（魔方被错误拆装）"
         return parse_solution(str(maneuver)), None
     except Exception as e:  # noqa: BLE001
-        return None, "求解失败：" + str(e)
+        return None, ("无法求解：该状态不是合法魔方（录入可能有颜色错误，或被拆装过）。"
+                      f"内部信息：{e}")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -320,12 +347,64 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _scan_start(self):
+        """在本机拉起 cube_scanner.py 摄像头扫描窗口（输出继承到本服务控制台）。"""
+        global _scan_proc, _scan_started_at
+        if not SCAN_OK:
+            self._send_json({"ok": False, "error": "扫描功能不可用：" + SCAN_ERR
+                             + "（需安装 opencv-python、numpy）"})
+            return
+        if not os.path.isfile(SCANNER):
+            self._send_json({"ok": False, "error": "找不到扫描脚本 " + SCANNER})
+            return
+        with _scan_lock:
+            if _scan_proc is not None and _scan_proc.poll() is None:
+                self._send_json({"ok": False, "error": "扫描程序已在运行，请先完成或关闭它"})
+                return
+            try:
+                _scan_proc = subprocess.Popen([sys.executable, SCANNER], cwd=ROOT)
+            except Exception as e:  # noqa: BLE001
+                self._send_json({"ok": False, "error": "启动扫描程序失败：" + str(e)})
+                return
+            _scan_started_at = time.time()
+        print(f"  已从网页启动扫描程序 (pid={_scan_proc.pid})")
+        self._send_json({"ok": True, "pid": _scan_proc.pid})
+
+    def _scan_status(self):
+        """页面轮询用：扫描进程是否在运行 / 退出码 / 是否产出了新的扫描结果。"""
+        with _scan_lock:
+            running = _scan_proc is not None and _scan_proc.poll() is None
+            exit_code = None if (_scan_proc is None or running) else _scan_proc.returncode
+            started_at = _scan_started_at
+        latest, new_result = None, False
+        if SCAN_OK:
+            try:
+                p = latest_scan_file(SCAN_DIR)
+                if p is not None:
+                    latest = p.name
+                    new_result = bool(started_at) and p.stat().st_mtime >= started_at - 1
+            except Exception:  # noqa: BLE001
+                pass
+        self._send_json({"ok": True, "running": running, "exit_code": exit_code,
+                         "latest": latest, "new_result": new_result})
+
     def do_GET(self):
         path = self.path.split("?")[0]
         if path == "/api/steps":
             self._send_json({"steps": STEPS})
         elif path == "/api/notation":
             self._send_json(NOTATION)
+        elif path == "/api/scan/latest":
+            if not SCAN_OK:
+                self._send_json({"ok": False, "error": "扫描导入模块不可用：" + SCAN_ERR})
+                return
+            try:
+                result = latest_scan_result(SCAN_DIR)
+            except Exception as e:  # noqa: BLE001
+                result = {"ok": False, "error": "读取扫描数据失败：" + str(e)}
+            self._send_json(result)
+        elif path == "/api/scan/status":
+            self._scan_status()
         elif path in ("/", "/index.html"):
             self._send_file(os.path.join(WEB_DIR, "index.html"))
         elif path.startswith("/web/"):
@@ -354,6 +433,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"error": err}, 400)
                 return
             self._send_json({"moves": moves, "solution": " ".join(moves), "count": len(moves)})
+        elif path == "/api/scan/start":
+            self._scan_start()
         else:
             self.send_error(404, "Not Found")
 
@@ -372,6 +453,8 @@ def main():
     else:
         print("  求解引擎不可用(自动还原将失败):", SOLVER_ERR)
         print("  安装命令: pip install cube-solver")
+    if not SCAN_OK:
+        print("  扫描导入不可用:", SCAN_ERR)
 
     print("  按 Ctrl+C 停止服务")
     print("=" * 46)

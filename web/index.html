@@ -163,7 +163,7 @@
   }
   .modalHead { display:flex; align-items:center; padding: 14px 18px; border-bottom:1px solid var(--line); }
   .modalHead h2 { font-size: 16px; }
-  .modalClose { margin-left:auto; background:none; border:none; color:var(--sub); font-size:18px; width:auto;height:auto; }
+  .modalClose { margin-left:auto; background:none; border:none; color:var(--sub); font-size:28px; line-height:1; padding:6px 12px; border-radius:8px; cursor:pointer; width:auto;height:auto; }
   .modalClose:hover { background: var(--card); }
   .modalBody { padding: 14px 18px 20px; }
   .tip { font-size:12.5px; line-height:1.7; color: var(--sub); margin-bottom:10px; }
@@ -256,6 +256,7 @@
     <div class="modalBody">
       <div id="entryIntro">
         <p class="tip">把魔方摆成 <b>上白 · 下黄 · 前绿 · 后蓝 · 右红 · 左橙</b>（中心块决定各面颜色），然后 <b>逐面点/刷录入 54 个贴纸</b>（中心已按配色自动填好，只需填 48 个可动块）。<br>
+        也可以点 <b>📸 启动摄像头扫描</b>（在本机弹出摄像头窗口，自动找到并对齐魔方面，逐面拍完自动导入）；此前用命令行跑过 <b>cube_scanner.py</b> 的话，点 <b>📷 导入扫描</b> 即可读入最新结果（各面照片朝向会自动校正）。<br>
         录满 6 个面可 <b>唯一确定</b> 状态，保证还原指导正确（经数学验证：少录任一面都无法保证唯一）。</p>
         <div class="palette" id="palette">
           <span class="lbl">选颜色后点/刷格子：</span>
@@ -268,6 +269,8 @@
           <button class="sw eraser" data-color="" style="background:#232838">擦</button>
         </div>
         <div class="entryBtns">
+          <button class="act" id="startScan">📸 启动摄像头扫描</button>
+          <button class="act" id="importScan">📷 导入扫描</button>
           <button class="act" id="fillSolved">填充为还原态</button>
           <button class="act" id="clearEntry">清空</button>
         </div>
@@ -1009,6 +1012,8 @@ function initEntryUI() {
     PAINT_FACES.forEach(f => { for (let i = 0; i < 9; i++) if (i !== 4) entryState[f][i] = ''; repaintFace(f); });
     document.getElementById('entryErr').textContent = '';
   };
+  document.getElementById('startScan').onclick = startScan;
+  document.getElementById('importScan').onclick = importScan;
   document.getElementById('solveGuide').onclick = solveGuide;
 
   document.getElementById('guideStep').onclick = guideStepFn;
@@ -1034,6 +1039,86 @@ function buildReprFromEntry() {
   const cnt = {}; for (const ch of a) cnt[ch] = (cnt[ch] || 0) + 1;
   for (const c of 'WYGRBO') if (cnt[c] !== 9) return { err: `颜色数量错误（${c}=${cnt[c] || 0}，应为 9），请核对` };
   return { repr: a.join(''), arr: a };
+}
+
+/* 启动本机的 cube_scanner.py 摄像头扫描程序（窗口出现在运行后端的电脑上），
+   轮询进程状态，扫描窗口关闭后自动导入新结果 */
+let scanPollTimer = null;
+async function startScan() {
+  const btn = document.getElementById('startScan');
+  if (btn.disabled) return;                 // 防连点重复启动
+  btn.disabled = true;
+  const errEl = document.getElementById('entryErr');
+  errEl.style.color = '';
+  errEl.textContent = '📸 正在启动扫描程序…';
+  let data;
+  try {
+    const r = await fetch('/api/scan/start', { method: 'POST' });
+    data = await r.json();
+  } catch (e) { errEl.textContent = '⚠ 无法连接后端，请确认已运行 python app.py'; scanBtnReset(); return; }
+  if (!data || !data.ok) { errEl.textContent = '⚠ ' + ((data && data.error) || '启动扫描失败'); scanBtnReset(); return; }
+  btn.textContent = '📸 扫描进行中…';
+  errEl.textContent = '📸 扫描窗口已打开：把魔方一个面朝向摄像头，出现绿色方框并保持稳定约半秒即自动采集（也可按空格），六个面采完按 q 退出，结果会自动导入…';
+  pollScanStatus();
+}
+function pollScanStatus() {
+  clearTimeout(scanPollTimer);
+  scanPollTimer = setTimeout(async () => {
+    let data;
+    try {
+      const r = await fetch('/api/scan/status');
+      data = await r.json();
+    } catch (e) {
+      scanBtnReset();
+      document.getElementById('entryErr').textContent = '⚠ 无法获取扫描状态（后端已停止？），请重新启动后端';
+      return;
+    }
+    if (data && data.running) { pollScanStatus(); return; }
+    scanBtnReset();
+    const errEl = document.getElementById('entryErr');
+    if (data && data.new_result) {
+      await importScan();                     // 成功导入时会自行更新提示并 toast
+    } else if (data && data.exit_code) {
+      errEl.textContent = `⚠ 扫描程序异常退出（代码 ${data.exit_code}）：摄像头可能打不开或被其它程序占用，详情见后端控制台`;
+    } else {
+      errEl.textContent = '📸 扫描已结束，但没有生成新的扫描结果（可能未采集任何面）';
+    }
+  }, 1500);
+}
+function scanBtnReset() {
+  const btn = document.getElementById('startScan');
+  btn.disabled = false;
+  btn.textContent = '📸 启动摄像头扫描';
+}
+
+/* 导入 cube_scans/ 里最新一次扫描结果：面朝向由后端自动校正；
+   校验不通过时也尽力填入识别结果，方便对照魔方手动修正 */
+async function importScan() {
+  const errEl = document.getElementById('entryErr');
+  errEl.style.color = '';
+  errEl.textContent = '📷 正在读取扫描数据…';
+  let data;
+  try {
+    const r = await fetch('/api/scan/latest');
+    data = await r.json();
+  } catch (e) { errEl.textContent = '⚠ 无法连接后端，请确认已运行 python app.py'; return; }
+  if (!data || !data.ok) { errEl.textContent = '⚠ ' + ((data && data.error) || '读取扫描数据失败'); return; }
+  for (const f of PAINT_FACES) {
+    const g = data.faces && data.faces[f];
+    if (!g) continue;                       // 扫描里缺这一面：留空待手动补
+    for (let i = 0; i < 9; i++) entryState[f][i] = i === 4 ? FACELET[f] : (g[i] || '');
+    repaintFace(f);
+  }
+  const tag = `${data.source}${data.captured_at ? '（' + data.captured_at + '）' : ''}`;
+  if (data.valid) {
+    errEl.style.color = 'var(--ok)';
+    errEl.textContent = `✅ 已导入 ${tag}，状态校验通过；核对无误后点下方按钮生成还原步骤`;
+    toast('📷 扫描导入成功，请核对颜色');
+  } else {
+    const w = (data.warnings || []).join('；');
+    errEl.textContent = `⚠ 已导入 ${tag}：${w || '状态未通过校验'}（识别结果已尽力填入）`;
+    toast('⚠ 扫描已导入，但有格子需要核对修正');
+  }
 }
 
 async function solveGuide() {
