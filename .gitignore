@@ -1,6 +1,14 @@
 # cube-solver 运行期自动生成的剪枝/转移表（体积达 GB 级，不入库）
 tables/
 
+# 运行期生成的日志与 PID 文件
+server.log
+server.pid
+
+# 摄像头扫描运行产物（保留脚本本身 cube_scanner.py / scan_to_facelet.py）
+cube_scans/cube_*.json
+cube_scans/cube_*_face*.png
+
 # Python
 __pycache__/
 *.py[cod]

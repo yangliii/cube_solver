@@ -8,6 +8,23 @@
   :root {
     --bg: #12141c; --panel: #1b1f2b; --card: #232838; --line: #323a52;
     --text: #e8ebf5; --sub: #9aa3bd; --accent: #4f8cff; --ok: #3ecf7a; --warn: #ffb84f;
+    --hover: #2d3450; --strong: #fff; --err: #ff8080;
+    --barGrad: linear-gradient(transparent, rgba(10,12,18,.85) 30%);
+    --floatBg: rgba(20,24,36,.92); --hintBg: rgba(20,24,36,.6);
+    --modalBg: rgba(8,10,16,.7); --shadow: rgba(0,0,0,.5);
+    --cellBg: #2a2f42; --cellFg: rgba(255,255,255,.35); --cellCenterFg: rgba(255,255,255,.85);
+    --sceneBg: #12141c;
+  }
+  /* 浅色主题：仅覆盖调色板，其余样式复用变量 */
+  html[data-theme="light"] {
+    --bg: #f4f6fb; --panel: #ffffff; --card: #eef1f8; --line: #d5dbe8;
+    --text: #1c2230; --sub: #5f6b85; --accent: #2f6fe0; --ok: #23a05e; --warn: #c87d0a;
+    --hover: #e2e8f5; --strong: #0e131c; --err: #d64545;
+    --barGrad: linear-gradient(transparent, rgba(244,246,251,.92) 30%);
+    --floatBg: rgba(255,255,255,.96); --hintBg: rgba(255,255,255,.82);
+    --modalBg: rgba(30,35,50,.45); --shadow: rgba(20,30,60,.18);
+    --cellBg: #e6eaf3; --cellFg: rgba(0,0,0,.32); --cellCenterFg: rgba(0,0,0,.78);
+    --sceneBg: #f4f6fb;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; overflow: hidden; }
@@ -35,7 +52,7 @@
   /* 底部手动控制条 */
   #toolbar {
     position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 12px 10px;
-    background: linear-gradient(transparent, rgba(10,12,18,.85) 30%);
+    background: var(--barGrad);
     display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center;
   }
   .faceRow { display: flex; gap: 3px; }
@@ -46,7 +63,7 @@
     background: var(--card); color: var(--text); border: 1px solid var(--line);
     border-radius: 6px; transition: background .15s, transform .05s;
   }
-  button:hover:not(:disabled) { background: #2d3450; }
+  button:hover:not(:disabled) { background: var(--hover); }
   button:active:not(:disabled) { transform: scale(.94); }
   button:disabled { opacity: .4; cursor: not-allowed; }
   .mv { width: 34px; height: 24px; font-size: 12px; }
@@ -91,7 +108,7 @@
   #stepBody .prep .lab { color: var(--warn); }
   #stepBody .check { background: rgba(62,207,122,.09); border-left: 3px solid var(--ok); }
   #stepBody .check .lab { color: var(--ok); }
-  #stepBody b { font-weight: 700; color: #fff; }
+  #stepBody b { font-weight: 700; color: var(--strong); }
   .steptips { margin: 10px 0 4px; }
   .steptips .lab { font-size: 12px; color: var(--sub); }
   .steptips li { font-size: 12px; line-height: 1.75; color: var(--sub); margin: 4px 0 0 16px; }
@@ -141,25 +158,25 @@
   }
   #toast {
     position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
-    background: rgba(20,24,36,.92); border: 1px solid var(--line); color: var(--text);
+    background: var(--floatBg); border: 1px solid var(--line); color: var(--text);
     padding: 8px 18px; border-radius: 20px; font-size: 13px; opacity: 0;
     transition: opacity .25s; pointer-events: none; white-space: nowrap;
   }
   #toast.show { opacity: 1; }
   #hint {
     position: absolute; top: 10px; left: 12px; font-size: 11px; color: var(--sub);
-    background: rgba(20,24,36,.6); padding: 4px 10px; border-radius: 12px; pointer-events: none;
+    background: var(--hintBg); padding: 4px 10px; border-radius: 12px; pointer-events: none;
   }
 
   /* ===== 实物录入弹窗 ===== */
   .modal {
-    position: fixed; inset: 0; background: rgba(8,10,16,.7); display: none;
+    position: fixed; inset: 0; background: var(--modalBg); display: none;
     align-items: flex-start; justify-content: center; z-index: 50; padding: 24px 12px; overflow:auto;
   }
   .modal.open { display: flex; }
   .modalBox {
     background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-    width: 100%; max-width: 720px; box-shadow: 0 12px 40px rgba(0,0,0,.5);
+    width: 100%; max-width: 720px; box-shadow: 0 12px 40px var(--shadow);
   }
   .modalHead { display:flex; align-items:center; padding: 14px 18px; border-bottom:1px solid var(--line); }
   .modalHead h2 { font-size: 16px; }
@@ -171,6 +188,7 @@
   .palette .lbl { font-size:12px; color:var(--sub); margin-right:4px; }
   .sw { width:38px; height:28px; border-radius:6px; border:1px solid var(--line); color:#fff; font-size:12px; }
   .sw.sel { outline:2px solid var(--accent); outline-offset:1px; }
+  .sw.eraser { background: var(--card); color: var(--sub); }
   .entryBtns { display:flex; gap:8px; margin-bottom:12px; }
   .entryBtns .act { height:26px; font-size:12px; padding:0 10px; }
   .nets { display:flex; flex-direction:column; align-items:center; gap:6px; }
@@ -180,15 +198,15 @@
   .faceNet .cap small { display:block; font-size:9.5px; opacity:.7; }
   .faceNet .grid { display:grid; grid-template-columns:repeat(3,30px); grid-auto-rows:30px; gap:2px; }
   .cell {
-    border:1px solid var(--line); border-radius:4px; cursor:pointer; background:#2a2f42;
-    display:flex; align-items:center; justify-content:center; font-size:11px; color:rgba(255,255,255,.35);
+    border:1px solid var(--line); border-radius:4px; cursor:pointer; background:var(--cellBg);
+    display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--cellFg);
     user-select:none;
   }
-  .cell.center { cursor:default; font-weight:700; color:rgba(255,255,255,.85); }
+  .cell.center { cursor:default; font-weight:700; color:var(--cellCenterFg); }
   .cell[data-c="W"]{ background:#f4f5f7; } .cell[data-c="Y"]{ background:#ffd500; }
   .cell[data-c="G"]{ background:#079a42; } .cell[data-c="B"]{ background:#0f5cb9; }
   .cell[data-c="R"]{ background:#b9190f; } .cell[data-c="O"]{ background:#f07312; }
-  .entryErr { color:#ff8080; font-size:12.5px; min-height:18px; margin-top:10px; text-align:center; }
+  .entryErr { color:var(--err); font-size:12.5px; min-height:18px; margin-top:10px; text-align:center; }
   .modalActions { display:flex; gap:10px; justify-content:center; margin-top:12px; }
   .modalActions .act { height:34px; padding:0 16px; }
   .stepList { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin:8px 0 4px; }
@@ -201,8 +219,8 @@
 
   #guideDock {
     position:absolute; top:12px; left:12px; z-index:20; display:none;
-    background:rgba(20,24,36,.92); border:1px solid var(--line); border-radius:10px;
-    padding:10px 12px; max-width:360px; box-shadow:0 8px 24px rgba(0,0,0,.4);
+    background:var(--floatBg); border:1px solid var(--line); border-radius:10px;
+    padding:10px 12px; max-width:360px; box-shadow:0 8px 24px var(--shadow);
   }
   #guideDock.open { display:block; }
   #guideDock .dockHead { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
@@ -211,6 +229,31 @@
   #guideDock .dockBtns { display:flex; gap:8px; margin-top:10px; }
   #guideDock .dockBtns .act { height:28px; font-size:12px; padding:0 12px; }
 
+  /* ===== 窄屏 / 移动端响应式（≤900px：3D 在上、教程在下的上下布局） ===== */
+  @media (max-width: 900px) {
+    header { height: auto; min-height: 46px; flex-wrap: wrap; gap: 8px; padding: 6px 10px; }
+    header h1 { font-size: 14px; }
+    #status { margin-left: 0; width: 100%; order: 10; }
+    main { flex-direction: column; }
+    #viewWrap { flex: none; height: 52vh; }
+    #side {
+      width: 100%; flex: 1; border-left: none;
+      border-top: 1px solid var(--line);
+    }
+    #steps { padding: 8px 10px 6px; gap: 4px; }
+    #stepBody { padding: 4px 10px 12px; }
+    #navRow { padding: 0 10px 10px; }
+    .modal { padding: 10px 6px; }
+    .modalBox { max-width: 100%; }
+    .modalBody { padding: 10px 12px 16px; }
+    .faceNet .grid { grid-template-columns: repeat(3, 26px); grid-auto-rows: 26px; }
+    .cell { font-size: 10px; }
+    #guideDock { max-width: calc(100vw - 24px); }
+    #toolbar { gap: 5px; padding: 6px 6px 8px; }
+    .mv { width: 30px; height: 22px; font-size: 11px; }
+    .act { height: 30px; padding: 0 10px; font-size: 12px; }
+    #hint { font-size: 10px; }
+  }
 
 </style>
 </head>
@@ -220,6 +263,7 @@
   <span class="badge">Python + Three.js</span>
   <span class="badge">分层七步法</span>
   <button class="act" id="openEntry" style="margin-left:12px;height:28px;font-size:12px">📥 录入实物魔方</button>
+  <button class="act" id="themeToggle" title="切换浅色/深色主题" style="height:28px;font-size:12px">☀️ 浅色</button>
   <div id="status">就绪</div>
 </header>
 
@@ -266,7 +310,7 @@
           <button class="sw" data-color="B" style="background:#0f5cb9">蓝</button>
           <button class="sw" data-color="R" style="background:#b9190f">红</button>
           <button class="sw" data-color="O" style="background:#f07312;color:#333">橙</button>
-          <button class="sw eraser" data-color="" style="background:#232838">擦</button>
+          <button class="sw eraser" data-color="">擦</button>
         </div>
         <div class="entryBtns">
           <button class="act" id="startScan">📸 启动摄像头扫描</button>
@@ -311,7 +355,7 @@
 
 
 <script type="importmap">
-{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+{ "imports": { "three": "/web/three.module.js" } }
 </script>
 <script type="module">
 import * as THREE from 'three';
@@ -1026,6 +1070,103 @@ function initEntryUI() {
     document.getElementById('guideDock').classList.remove('open');
 }
 
+/* ===== #10 可达性预校验 =====
+   与后端 cube_scans/scan_to_facelet.py 的 _check_state 逐条对应：把 54 位串解析成
+   角块/棱块的位置(cp/ep)与朝向(co/eo)，再校验块是否唯一、朝向和、以及置换奇偶性。
+   这样在录入阶段就能提示「颜色记错 / 魔方被拆装过」，无需等后端求解才报错。
+   角块首贴纸必须位于 U/D 面（与后端、Kociemba 标准表同一约定）。 */
+const _CE_FACE_COLOR = { U: 'W', D: 'Y', F: 'G', B: 'B', R: 'R', L: 'O' };
+const _CE_FACE_ORDER = ['U', 'L', 'F', 'R', 'B', 'D'];
+function _ceFi(face, r, c) { return FACE_BASE[face] + r * 3 + c; }
+// 每项 = [名称, 贴纸1, 贴纸2, 贴纸3]，贴纸 = [面, 行, 列]（与后端 _CORNERS/_EDGES 一一对应）
+const _CE_CORNERS = [
+  ['URF', ['U', 2, 2], ['R', 0, 0], ['F', 0, 2]],
+  ['UFL', ['U', 2, 0], ['F', 0, 0], ['L', 0, 2]],
+  ['ULB', ['U', 0, 0], ['L', 0, 0], ['B', 0, 2]],
+  ['UBR', ['U', 0, 2], ['B', 0, 0], ['R', 0, 2]],
+  ['DFR', ['D', 0, 2], ['F', 2, 2], ['R', 2, 0]],
+  ['DLF', ['D', 0, 0], ['L', 2, 2], ['F', 2, 0]],
+  ['DBL', ['D', 2, 0], ['B', 2, 2], ['L', 2, 0]],
+  ['DRB', ['D', 2, 2], ['R', 2, 2], ['B', 2, 0]],
+];
+const _CE_EDGES = [
+  ['UR', ['U', 1, 2], ['R', 0, 1]],
+  ['UF', ['U', 2, 1], ['F', 0, 1]],
+  ['UL', ['U', 1, 0], ['L', 0, 1]],
+  ['UB', ['U', 0, 1], ['B', 0, 1]],
+  ['DR', ['D', 1, 2], ['R', 2, 1]],
+  ['DF', ['D', 0, 1], ['F', 2, 1]],
+  ['DL', ['D', 1, 0], ['L', 2, 1]],
+  ['DB', ['D', 2, 1], ['B', 2, 1]],
+  ['FR', ['F', 1, 2], ['R', 1, 0]],
+  ['FL', ['F', 1, 0], ['L', 1, 2]],
+  ['BL', ['B', 1, 2], ['L', 1, 0]],
+  ['BR', ['B', 1, 0], ['R', 1, 2]],
+];
+const _CE_CORNER_FACELET = _CE_CORNERS.map(c => c.slice(1).map(x => _ceFi(x[0], x[1], x[2])));
+const _CE_CORNER_COLOR = _CE_CORNERS.map(c => c.slice(1).map(x => _CE_FACE_COLOR[x[0]]));
+const _CE_EDGE_FACELET = _CE_EDGES.map(e => e.slice(1).map(x => _ceFi(x[0], x[1], x[2])));
+const _CE_EDGE_COLOR = _CE_EDGES.map(e => e.slice(1).map(x => _CE_FACE_COLOR[x[0]]));
+
+// 由块排列+朝向重新渲染 54 位串，用于最后与输入逐格核对（含中心块颜色）
+function _ceRender(cp, co, ep, eo) {
+  const out = new Array(54).fill('');
+  for (const fc of _CE_FACE_ORDER) out[FACE_BASE[fc] + 4] = _CE_FACE_COLOR[fc];
+  for (let i = 0; i < 8; i++) {
+    const cc = _CE_CORNER_COLOR[cp[i]];
+    for (let t = 0; t < 3; t++) out[_CE_CORNER_FACELET[i][(co[i] + t) % 3]] = cc[t];
+  }
+  for (let i = 0; i < 12; i++) {
+    const ec = _CE_EDGE_COLOR[ep[i]];
+    const p = eo[i] === 0 ? [ec[0], ec[1]] : [ec[1], ec[0]];
+    out[_CE_EDGE_FACELET[i][0]] = p[0];
+    out[_CE_EDGE_FACELET[i][1]] = p[1];
+  }
+  return out.join('');
+}
+
+// 合法可达返回 null，否则返回中文原因（文案与后端 _check_state 一致）
+function checkReachability(s) {
+  const cp = new Array(8), co = new Array(8);
+  for (let i = 0; i < 8; i++) {
+    const cols = _CE_CORNER_FACELET[i].map(k => s[k]);
+    let ori = -1;
+    for (let k = 0; k < 3; k++) if (cols[k] === 'W' || cols[k] === 'Y') { ori = k; break; }
+    if (ori < 0) return `角位 ${_CE_CORNERS[i][0]} 缺少上/下色（${cols.join('')}）`;
+    const c1 = cols[(ori + 1) % 3], c2 = cols[(ori + 2) % 3];
+    let j = -1;
+    for (let t = 0; t < 8; t++) {
+      if (_CE_CORNER_COLOR[t][1] === c1 && _CE_CORNER_COLOR[t][2] === c2) { j = t; break; }
+    }
+    if (j < 0) return `角位 ${_CE_CORNERS[i][0]} 的颜色组合非法（${cols.join('')}）`;
+    cp[i] = j; co[i] = ori;
+  }
+  if (new Set(cp).size !== 8) return '角块重复或缺失';
+  const ep = new Array(12), eo = new Array(12);
+  for (let i = 0; i < 12; i++) {
+    const c0 = s[_CE_EDGE_FACELET[i][0]], c1 = s[_CE_EDGE_FACELET[i][1]];
+    let j = -1;
+    for (let t = 0; t < 12; t++) {
+      const ec = _CE_EDGE_COLOR[t];
+      if ((ec[0] === c0 && ec[1] === c1) || (ec[1] === c0 && ec[0] === c1)) { j = t; break; }
+    }
+    if (j < 0) return `棱位 ${_CE_EDGES[i][0]} 的颜色组合非法（${c0}${c1}）`;
+    ep[i] = j; eo[i] = c0 === _CE_EDGE_COLOR[j][0] ? 0 : 1;
+  }
+  if (new Set(ep).size !== 12) return '棱块重复或缺失';
+  const coSum = co.reduce((x, y) => x + y, 0);
+  if (coSum % 3) return `角块朝向和不对（${coSum}，应为 3 的倍数）`;
+  const eoSum = eo.reduce((x, y) => x + y, 0);
+  if (eoSum % 2) return `棱块翻转数不对（${eoSum}，应为偶数）`;
+  let pc = 0, pe = 0;
+  for (let i = 0; i < 8; i++) for (let j = 0; j < i; j++) if (cp[j] > cp[i]) pc++;
+  for (let i = 0; i < 12; i++) for (let j = 0; j < i; j++) if (ep[j] > ep[i]) pe++;
+  if (pc % 2 !== pe % 2) return '角块与棱块置换奇偶不一致';
+  if (_ceRender(cp, co, ep, eo) !== s) return '存在无法解释的贴纸（个别格子的颜色识别可能有误）';
+  return null;
+}
+/* ===== #10 end ===== */
+
 function buildReprFromEntry() {
   const a = new Array(54).fill(null);
   for (const f of PAINT_FACES) {
@@ -1038,7 +1179,10 @@ function buildReprFromEntry() {
   if (a.some(v => !v)) return { err: '状态组装失败' };
   const cnt = {}; for (const ch of a) cnt[ch] = (cnt[ch] || 0) + 1;
   for (const c of 'WYGRBO') if (cnt[c] !== 9) return { err: `颜色数量错误（${c}=${cnt[c] || 0}，应为 9），请核对` };
-  return { repr: a.join(''), arr: a };
+  const s = a.join('');
+  const reachErr = checkReachability(s);
+  if (reachErr) return { err: `该状态不可达：${reachErr}。魔方可能被拆装过，或颜色记错了，请核对` };
+  return { repr: s, arr: a };
 }
 
 /* 启动本机的 cube_scanner.py 摄像头扫描程序（窗口出现在运行后端的电脑上），
@@ -1058,7 +1202,7 @@ async function startScan() {
   } catch (e) { errEl.textContent = '⚠ 无法连接后端，请确认已运行 python app.py'; scanBtnReset(); return; }
   if (!data || !data.ok) { errEl.textContent = '⚠ ' + ((data && data.error) || '启动扫描失败'); scanBtnReset(); return; }
   btn.textContent = '📸 扫描进行中…';
-  errEl.textContent = '📸 扫描窗口已打开：把魔方一个面朝向摄像头，出现绿色方框并保持稳定约半秒即自动采集（也可按空格），六个面采完按 q 退出，结果会自动导入…';
+  errEl.textContent = '📸 扫描窗口已打开：把魔方一个面朝向摄像头，出现绿色方框并保持稳定约 0.3 秒即自动采集（也可按空格），六个面采完会自动退出并校验，结果会自动导入…';
   pollScanStatus();
 }
 function pollScanStatus() {
@@ -1176,6 +1320,22 @@ async function guideAutoFn() {
   await execMoves(solMoves.slice(solPos), { keepSolution: true });
   solPos = solMoves.length; updateDock(); toast('✅ 还原完成！');
 }
+
+/* ================= 主题切换 ================= */
+const themeBtn = document.getElementById('themeToggle');
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  themeBtn.textContent = t === 'light' ? '🌙 深色' : '☀️ 浅色';
+  const bg = getComputedStyle(document.documentElement).getPropertyValue('--sceneBg').trim();
+  scene.background = new THREE.Color(bg);
+  renderer.setClearColor(bg, 1);
+}
+applyTheme(localStorage.getItem('cubeTheme') === 'light' ? 'light' : 'dark');
+themeBtn.onclick = () => {
+  const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+  localStorage.setItem('cubeTheme', next);
+  applyTheme(next);
+};
 
 buildToolbar();
 buildCube();

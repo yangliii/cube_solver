@@ -1,0 +1,15 @@
+# 三阶魔方新手还原教程 · 依赖清单
+#
+# 用法：在项目虚拟环境（.venv）中执行
+#   pip install -r requirements.txt
+# 或仅安装核心求解引擎：
+#   pip install cube-solver
+
+# ---- 核心（可选：不装则“自动还原 / 录入求解”不可用，其余功能正常）----
+cube-solver>=1.1
+
+# ---- 摄像头扫描（可选：不装则“📸 摄像头扫描”不可用，手动录入不受影响）----
+# 依赖 numpy / opencv-python；pillow 用于中文提示渲染，缺失时退化为英文提示。
+numpy
+opencv-python
+pillow

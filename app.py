@@ -14,6 +14,7 @@
          配色约定与前端完全一致：上白(W) 下黄(Y) 前绿(G) 后蓝(B) 右红(R) 左橙(O)。
          facelet 字符串顺序为 U L F R B D，每面按行优先 9 格。
 """
+import argparse
 import json
 import os
 import mimetypes
@@ -24,16 +25,45 @@ import webbrowser
 import threading
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
+# ---------------- 运行参数（环境变量 + 命令行，命令行优先级更高） ----------------
+DEFAULT_PORT = 8000
+HOST = "127.0.0.1"
+# CUBE_DEBUG=1 时输出 HTTP 访问日志，便于排障；默认静默保持控制台清爽
+DEBUG_LOG = os.environ.get("CUBE_DEBUG") == "1"
+
 # ---------------- 求解引擎（可选依赖，缺失时后端仍可运行） ----------------
+# 注意：Kociemba() 构造时会加载/构建约 1.6GB 的剪枝表，这里只导入类、
+# 不实例化；_SOLVER 改为首次求解时懒加载（见 get_solver），启动不再被拖慢。
 try:
     from cube_solver import Cube, Kociemba
-    _SOLVER = Kociemba()
     SOLVER_OK = True
     SOLVER_ERR = ""
 except Exception as _e:  # noqa: BLE001
-    Cube = Kociemba = _SOLVER = None
+    Cube = Kociemba = None
     SOLVER_OK = False
     SOLVER_ERR = str(_e)
+
+_solver = None
+# RLock：get_solver 与 solve 串行化共用此锁，且 solve_facelet 会在持锁时嵌套调用 get_solver
+_solver_lock = threading.RLock()
+
+
+def _warn(msg):
+    """排障告警：默认安静，仅 CUBE_DEBUG=1 时打印到 stderr。"""
+    if DEBUG_LOG:
+        print("[warn] " + msg, file=sys.stderr, flush=True)
+
+
+def get_solver():
+    """懒加载 Kociemba 求解器（首次调用会构建搜索表，较慢）。线程安全。"""
+    global _solver
+    if _solver is None:
+        with _solver_lock:
+            if _solver is None:
+                print("  求解引擎：首次初始化（构建剪枝/转移表，仅需一次，可能耗时若干秒）…")
+                _solver = Kociemba()
+                print("  求解引擎：就绪")
+    return _solver
 
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -57,7 +87,21 @@ _scan_lock = threading.Lock()
 _scan_proc = None           # 最近一次由网页启动的扫描进程
 _scan_started_at = 0.0      # 启动时刻，用于判断是否生成了新的扫描结果
 
-PORT = 8000
+
+def _reap_scan_proc():
+    """回收扫描子进程句柄。服务退出时若扫描程序仍在运行则一并结束，
+    避免解释器退出时残留未回收的子进程而产生 ResourceWarning。"""
+    global _scan_proc
+    with _scan_lock:
+        if _scan_proc is None:
+            return
+        if _scan_proc.poll() is None:
+            _scan_proc.terminate()
+        try:
+            _scan_proc.wait(timeout=3)
+        except Exception as e:  # noqa: BLE001
+            _warn(f"回收扫描子进程失败：{e}")
+        _scan_proc = None
 
 # ---------------- 转动符号说明 ----------------
 # 本页面所有公式都按「新手拿法」编写：白色那一面朝下当底面，黄色朝上当顶面。
@@ -280,22 +324,21 @@ STEPS = [
 
 
 def parse_solution(maneuver_str):
-    """把 cube_solver 的解法字符串(如 "F2 B' U' R'")解析成前端可播放的 token 列表。"""
+    """把 cube_solver 的解法字符串(如 "F2 B' U' R'")解析成前端可播放的 token 列表。
+    遇到无法识别的记号直接抛 ValueError，避免解法被静默截断而不自知。"""
     tokens = []
-    buf = ""
-    for ch in maneuver_str:
+    i, n = 0, len(maneuver_str)
+    while i < n:
+        ch = maneuver_str[i]
         if ch in "RLUDFB":
-            if buf:
-                tokens.append(buf)
-            buf = ch
-        elif ch in "'2":
-            buf += ch
-        else:  # 空格或其它分隔符
-            if buf:
-                tokens.append(buf)
-                buf = ""
-    if buf:
-        tokens.append(buf)
+            token = ch
+            if i + 1 < n and maneuver_str[i + 1] in "'2":
+                token += maneuver_str[i + 1]
+                i += 1
+            tokens.append(token)
+        elif not ch.isspace():
+            raise ValueError(f"无法识别的转动记号 {ch!r}（完整解法：{maneuver_str!r}）")
+        i += 1
     return tokens
 
 
@@ -312,7 +355,10 @@ def solve_facelet(facelet):
         cube = Cube(repr=facelet)
         if cube.is_solved:
             return [], None
-        maneuver = _SOLVER.solve(cube)
+        # 加锁串行化：cube_solver.Kociemba 的线程安全性未做承诺，避免并发 solve 竞态
+        with _solver_lock:
+            solver = get_solver()
+            maneuver = solver.solve(cube)
         if maneuver is None:
             return None, "无法求解，该状态可能不可达（魔方被错误拆装）"
         return parse_solution(str(maneuver)), None
@@ -323,18 +369,18 @@ def solve_facelet(facelet):
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
-        pass  # 静默日志，保持控制台清爽
+        if DEBUG_LOG:  # CUBE_DEBUG=1 时输出访问日志；默认静默保持控制台清爽
+            super().log_message(fmt, *args)
 
     def _send_json(self, obj, status=200):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(body)
 
-    def _send_file(self, filepath):
+    def _send_file(self, filepath, cache_control=None):
         if not os.path.isfile(filepath):
             self.send_error(404, "Not Found")
             return
@@ -344,6 +390,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", ctype or "application/octet-stream")
         self.send_header("Content-Length", str(len(body)))
+        if cache_control:
+            self.send_header("Cache-Control", cache_control)
         self.end_headers()
         self.wfile.write(body)
 
@@ -372,10 +420,17 @@ class Handler(BaseHTTPRequestHandler):
 
     def _scan_status(self):
         """页面轮询用：扫描进程是否在运行 / 退出码 / 是否产出了新的扫描结果。"""
+        global _scan_proc
         with _scan_lock:
             running = _scan_proc is not None and _scan_proc.poll() is None
             exit_code = None if (_scan_proc is None or running) else _scan_proc.returncode
             started_at = _scan_started_at
+            if _scan_proc is not None and not running:   # 进程已结束：回收句柄
+                try:
+                    _scan_proc.wait(timeout=1)
+                except Exception as e:  # noqa: BLE001
+                    _warn(f"回收扫描子进程失败：{e}")
+                _scan_proc = None
         latest, new_result = None, False
         if SCAN_OK:
             try:
@@ -383,8 +438,8 @@ class Handler(BaseHTTPRequestHandler):
                 if p is not None:
                     latest = p.name
                     new_result = bool(started_at) and p.stat().st_mtime >= started_at - 1
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as e:  # noqa: BLE001
+                _warn(f"读取扫描结果目录失败：{e}")
         self._send_json({"ok": True, "running": running, "exit_code": exit_code,
                          "latest": latest, "new_result": new_result})
 
@@ -406,14 +461,17 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/scan/status":
             self._scan_status()
         elif path in ("/", "/index.html"):
-            self._send_file(os.path.join(WEB_DIR, "index.html"))
+            # 入口页每次都校验新鲜度，保证发布后刷新即生效
+            self._send_file(os.path.join(WEB_DIR, "index.html"), cache_control="no-cache")
         elif path.startswith("/web/"):
             # 防目录穿越
             rel = os.path.normpath(path[5:])
             if rel.startswith("..") or os.path.isabs(rel):
                 self.send_error(403, "Forbidden")
                 return
-            self._send_file(os.path.join(WEB_DIR, rel))
+            # /web/ 下为版本固定的静态资源（如本地化的 three.module.js），可长缓存
+            self._send_file(os.path.join(WEB_DIR, rel),
+                            cache_control="public, max-age=86400")
         else:
             self.send_error(404, "Not Found")
 
@@ -440,16 +498,42 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
+    ap = argparse.ArgumentParser(description="三阶魔方新手还原教程后端")
+    # 端口单一来源：命令行 --port 优先，其次环境变量 CUBE_PORT，最后默认 8000
+    ap.add_argument("--port", type=int, default=int(os.environ.get("CUBE_PORT", DEFAULT_PORT)),
+                    help="监听端口（默认 %(default)s，也可用环境变量 CUBE_PORT 设置）")
+    ap.add_argument("--no-browser", action="store_true",
+                    default=os.environ.get("CUBE_NO_BROWSER") == "1",
+                    help="启动后不自动打开浏览器（也可设环境变量 CUBE_NO_BROWSER=1）")
+    ap.add_argument("--prewarm", action="store_true",
+                    help="启动后在后台预热求解引擎（默认懒加载：首次求解时才初始化）")
+    args = ap.parse_args()
+
+    # 仅绑定本机回环地址：本应用为单机使用，且 /api/scan/start 会在本机拉起
+    # 摄像头扫描进程，若暴露到局域网会被任意页面跨站触发（CSRF/隐私风险）。
+    try:
+        server = ThreadingHTTPServer((HOST, args.port), Handler)
+    except OSError as e:
+        print(f"启动失败：无法在 {HOST}:{args.port} 监听（{e}）。\n"
+              f"端口可能已被占用，可用 --port <端口> 或设置环境变量 CUBE_PORT 重试。",
+              file=sys.stderr)
+        return 1
+    server.daemon_threads = True   # 请求处理线程随主进程退出，避免卡住关闭流程
     print("=" * 46)
     print("  三阶魔方新手还原教程 已启动")
-    print(f"  请用浏览器访问: http://localhost:{PORT}")
+    print(f"  请用浏览器访问: http://localhost:{args.port}")
     if SOLVER_OK:
-        try:  # 预热：首次求解会构建搜索表，避免用户第一次点击时卡顿
-            _SOLVER.solve(Cube("R U R' U'"))
-            print("  求解引擎: cube_solver 就绪")
-        except Exception as e:  # noqa: BLE001
-            print("  求解引擎警告:", e)
+        if args.prewarm:
+            def _warm():
+                try:  # 后台预热：不阻塞启动，首次点击求解时不卡顿
+                    get_solver().solve(Cube("R U R' U'"))
+                    print("  求解引擎：预热完成，已就绪")
+                except Exception as e:  # noqa: BLE001
+                    print("  求解引擎预热警告:", e)
+            threading.Thread(target=_warm, daemon=True).start()
+            print("  求解引擎: 后台预热中（--prewarm）")
+        else:
+            print("  求解引擎: 已安装，将在首次求解时懒加载（加 --prewarm 可启动即预热）")
     else:
         print("  求解引擎不可用(自动还原将失败):", SOLVER_ERR)
         print("  安装命令: pip install cube-solver")
@@ -458,13 +542,20 @@ def main():
 
     print("  按 Ctrl+C 停止服务")
     print("=" * 46)
-    # 延迟 1.5 秒后自动打开系统浏览器，确保服务已就绪
-    url = f"http://localhost:{PORT}"
-    threading.Timer(1.5, lambda: webbrowser.open(url)).start()
+    # 延迟 1.5 秒后自动打开系统浏览器，确保服务已就绪；daemon 线程不阻碍进程退出
+    if not args.no_browser:
+        url = f"http://localhost:{args.port}"
+        t = threading.Timer(1.5, lambda: webbrowser.open(url))
+        t.daemon = True
+        t.start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\n服务已停止")
+    finally:
+        _reap_scan_proc()
+        server.server_close()
+    return 0
 
 
 if __name__ == "__main__":

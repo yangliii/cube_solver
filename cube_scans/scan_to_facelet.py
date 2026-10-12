@@ -22,12 +22,22 @@
 import itertools
 import json
 import sys
+from collections import Counter
 from pathlib import Path
 
+
+def _warn(msg):
+    """排障告警：输出到 stderr，不影响正常返回（缺依赖等场景仍可降级运行）。"""
+    print("[scan_to_facelet][warn] " + msg, file=sys.stderr, flush=True)
+
+
 try:  # 同目录的扫描脚本：用其当前阈值对存档采样值重新识别（阈值调整后旧数据也能受益）
-    from cube_scanner import classify_color as _classify_color
-except Exception:  # noqa: BLE001  （缺 cv2/numpy 时退回 JSON 里存好的颜色）
+    from cube_scanner import (classify_color as _classify_color,
+                              classify_color_ex as _classify_color_ex)
+except Exception as _e:  # noqa: BLE001  （缺 cv2/numpy 时退回 JSON 里存好的颜色）
+    _warn(f"无法导入 cube_scanner 的颜色分类，改用 JSON 存档颜色：{_e}")
     _classify_color = None
+    _classify_color_ex = None
 
 COLORS = "WYGRBO"
 CENTER_TO_FACE = {"W": "U", "Y": "D", "G": "F", "B": "B", "R": "R", "O": "L"}
@@ -176,9 +186,52 @@ def _face_grid(f):
             n_new = sum(r.count("?") for r in g2)
             if n_new <= n_old:      # 新阈值没识别得更差才采用
                 grid = g2
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as e:  # noqa: BLE001
+            _warn(f"用最新阈值重新识别失败，沿用存档颜色：{e}")
     return grid
+
+
+def _reconcile_counts(grids):
+    """用「六种颜色各 9 格」的全局约束纠正个别识别错误（红↔橙这类边界误判）。
+
+    现实魔方每种颜色恰好 9 格。逐格阈值分类在反光/白平衡下可能把个别格子判错
+    （典型是橙被判成红，此时红会多、橙会少）。这里先从原始采样值重算每格「离判定
+    边界多近」及各格的邻色，再反复把「超配额颜色里最贴近边界、且边界另一侧正好缺
+    配额」的那一格改判过去，直到各色均为 9 格或无可移动的格子。
+
+    仅当六面齐全、无 '?'、且存档里有原始采样值（median_bgr，可重算边界接近度）时
+    启用；否则原样返回。`grids` 为 [(面记录, 3x3 颜色矩阵), ...]，矩阵原地修改；
+    返回 [(面序号, 行, 列, 旧色, 新色), ...]。中心块不参与移动（它决定该面归属）。
+    """
+    if _classify_color_ex is None or len(grids) != 6:
+        return []
+    cells = []
+    for f, g in grids:
+        mb = f.get("median_bgr")
+        if not mb or any(g[r][c] not in COLORS for r in range(3) for c in range(3)):
+            return []       # 缺采样值或已存在 '?'：不纠正，交给后续校验提示
+        for r in range(3):
+            for c in range(3):
+                margin, neighbor = _classify_color_ex(mb[r][c])[1:]
+                cells.append({"g": g, "face": f.get("index", "?"), "r": r, "c": c,
+                              "col": g[r][c], "margin": margin, "neighbor": neighbor,
+                              "center": r == 1 and c == 1})
+    moved = []
+    for _ in range(sum(len(g) for _, g in grids)):
+        cnt = Counter(x["col"] for x in cells)
+        over = [k for k in COLORS if cnt[k] > 9]
+        if not over:
+            break
+        under = {k for k in COLORS if cnt[k] < 9}
+        cand = [x for x in cells if x["col"] in over and not x["center"]
+                and x["neighbor"] in under]
+        if not cand:
+            break
+        x = min(cand, key=lambda t: t["margin"])
+        moved.append((x["face"], x["r"], x["c"], x["col"], x["neighbor"]))
+        x["col"] = x["neighbor"]
+        x["g"][x["r"]][x["c"]] = x["neighbor"]
+    return moved
 
 
 def scan_to_repr(json_path):
@@ -200,6 +253,10 @@ def scan_to_repr(json_path):
             return {"ok": False, "error": f"第 {f.get('index', '?')} 面数据不正确：{e}"}
     if not grids:
         return {"ok": False, "error": f"{path.name} 里没有任何面数据"}
+
+    # ---- 1.5 用「每色恰 9 格」的全局约束纠正个别误判（如橙被判成红） ----
+    for face_idx, r, c, old, new in _reconcile_counts(grids):
+        warnings.append(f"按「每色 9 格」把第 {face_idx} 面第 {r + 1} 行第 {c + 1} 列 {old}→{new}")
 
     # ---- 2. 按中心块颜色确定面归属 ----
     face_of_center = {}
